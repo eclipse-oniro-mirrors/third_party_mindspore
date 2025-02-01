@@ -1,0 +1,799 @@
+From 4c255522b8ad0325e00dcd4d65bb909f6b7e1ab3 Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Fri, 19 Jul 2024 10:43:48 +0800
+Subject: [PATCH] hiappevent not report when not hap
+
+---
+ mindspore/lite/BUILD.gn                       |   2 +
+ mindspore/lite/src/common/BUILD.gn            |   5 +
+ .../src/common/hi_app_event/handler_thread.cc | 143 ++++++++++++++++++
+ .../src/common/hi_app_event/handler_thread.h  | 102 +++++++++++++
+ .../src/common/hi_app_event/hi_app_event.cc   |  80 ++++++++++
+ .../src/common/hi_app_event/hi_app_event.h    |  31 ++++
+ .../hi_app_event/hi_app_event_config.cc       |  57 +++++++
+ .../common/hi_app_event/hi_app_event_config.h |  45 ++++++
+ mindspore/lite/src/litert/c_api/model_c.cc    |   6 +
+ .../lite/src/litert/cxx_api/model/model.cc    |  96 +++++++++++-
+ 10 files changed, 563 insertions(+), 4 deletions(-)
+ create mode 100644 mindspore/lite/src/common/hi_app_event/handler_thread.cc
+ create mode 100644 mindspore/lite/src/common/hi_app_event/handler_thread.h
+ create mode 100644 mindspore/lite/src/common/hi_app_event/hi_app_event.cc
+ create mode 100644 mindspore/lite/src/common/hi_app_event/hi_app_event.h
+ create mode 100644 mindspore/lite/src/common/hi_app_event/hi_app_event_config.cc
+ create mode 100644 mindspore/lite/src/common/hi_app_event/hi_app_event_config.h
+
+diff --git a/mindspore/lite/BUILD.gn b/mindspore/lite/BUILD.gn
+index 58ee5e51..6f7f85e9 100644
+--- a/mindspore/lite/BUILD.gn
++++ b/mindspore/lite/BUILD.gn
+@@ -397,6 +397,7 @@ ohos_shared_library("mindspore_lib") {
+     "RUNTIME_PASS_CLIP",
+     "ENABLE_MULTI_LAYOUT",
+     "VERSION_STR=\"2.1.0\"",
++    "ENABLE_HI_APP_EVENT",
+   ]
+ 
+   if (target_cpu == "arm") {
+@@ -506,6 +507,7 @@ ohos_shared_library("mindspore_ndk") {
+     "RUNTIME_PASS_CLIP",
+     "ENABLE_MULTI_LAYOUT",
+     "VERSION_STR=\"2.1.0\"",
++    "ENABLE_HI_APP_EVENT",
+   ]
+ 
+   configs = [
+diff --git a/mindspore/lite/src/common/BUILD.gn b/mindspore/lite/src/common/BUILD.gn
+index 8bb14a30..e08e09ce 100644
+--- a/mindspore/lite/src/common/BUILD.gn
++++ b/mindspore/lite/src/common/BUILD.gn
+@@ -17,6 +17,9 @@ lite_src_common_mid_sources = [
+   "random_data_generator.cc",
+   "string_util.cc",
+   "dynamic_library_loader.cc",
++  "hi_app_event/hi_app_event.cc",
++  "hi_app_event/hi_app_event_config.cc",
++  "hi_app_event/handler_thread.cc",
+ ]
+ 
+ ohos_source_set("lite_common_mid_obj") {
+@@ -36,6 +39,7 @@ ohos_source_set("lite_common_mid_obj") {
+ 
+   external_deps = [
+     "hilog:libhilog",
++    "hiappevent:hiappevent_innerapi",
+   ]
+ 
+   configs = [
+@@ -48,6 +52,7 @@ ohos_source_set("lite_common_mid_obj") {
+     "MS_COMPILE_OHOS",
+     "PRIMITIVE_WRITEABLE",
+     "VERSION_STR=\"2.1.0\"",
++    "ENABLE_HI_APP_EVENT",
+   ]
+   if (target_cpu == "arm") {
+     defines += [
+diff --git a/mindspore/lite/src/common/hi_app_event/handler_thread.cc b/mindspore/lite/src/common/hi_app_event/handler_thread.cc
+new file mode 100644
+index 00000000..a84504c0
+--- /dev/null
++++ b/mindspore/lite/src/common/hi_app_event/handler_thread.cc
+@@ -0,0 +1,143 @@
++/**
++ * Copyright 2024 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "handler_thread.h"
++
++namespace mindspore {
++namespace lite {
++HandlerThread::Handler::Handler(HandlerThread& aLooper)
++    : assigned_looper_(aLooper)
++{ }
++
++bool HandlerThread::Handler::Post(HandlerThread::Runnable && aRunnable)
++{
++  return assigned_looper_.Post("", std::move(aRunnable));
++}
++
++bool HandlerThread::Handler::Post(std::string key, HandlerThread::Runnable && aRunnable)
++{
++  return assigned_looper_.Post(key, std::move(aRunnable));
++}
++
++HandlerThread::HandlerThread()
++    : running_(false),
++      abort_requested_(false),
++      runnables_(),
++      runnables_mutex_(),
++      handler_(std::make_shared< Handler >(*this))
++{ }
++
++HandlerThread::~HandlerThread()
++{
++  AbortAndJoin();
++}
++
++bool HandlerThread::Running() const
++{
++  return running_.load();
++}
++
++bool HandlerThread::Run()
++{
++  thread_ = std::thread(&HandlerThread::RunFunc, this);
++
++  return true;
++}
++
++void HandlerThread::Stop()
++{
++  AbortAndJoin();
++}
++
++std::shared_ptr < HandlerThread::Handler > HandlerThread::GetHandler()
++{
++  return handler_;
++}
++
++void HandlerThread::RunFunc()
++{
++  running_.store(true);
++
++  (void)pthread_setname_np(pthread_self(), "OS_MSEvent");
++  while (abort_requested_.load() == false) {
++    Runnable r = Next();
++    if (r != nullptr) {
++      r();
++    } else {
++      std::unique_lock<std::mutex> lock{mutex_};
++      condition_.wait(lock);
++    }
++  }
++
++  running_.store(false);
++}
++
++void HandlerThread::AbortAndJoin()
++{
++  abort_requested_.store(true);
++  condition_.notify_one();
++  if (thread_.joinable()) {
++    thread_.join();
++  }
++}
++
++HandlerThread::Runnable HandlerThread::Next()
++{
++  std::lock_guard guard(runnables_mutex_);
++
++  if (runnables_.empty()) {
++    return nullptr;
++  }
++  std::shared_ptr<Message> msg = runnables_.front();
++  Runnable runnable = msg->r;
++  runnables_.pop_front();
++  return runnable;
++}
++
++class IsSameKey {
++public:
++  std::string key_;
++
++  bool operator()(std::shared_ptr < HandlerThread::Message > obj)
++  {
++    return obj->key == key_;
++  }
++
++  explicit IsSameKey(std::string key) { key_ = key; }
++};
++
++bool HandlerThread::Post(std::string key, Runnable && aRunnable)
++{
++  if (not Running()) {
++    std::cout << "Denying insertion, as the looper is not running.\n";
++    return false;
++  }
++
++  std::lock_guard guard(runnables_mutex_);
++  if (!key.empty()) {
++    runnables_.remove_if(IsSameKey(key));
++  }
++  auto msg = std::make_shared<Message>();
++  msg->key = key;
++  msg->r = std::move(aRunnable);
++  runnables_.push_back(msg);
++  std::unique_lock<std::mutex> lock{mutex_};
++  condition_.notify_one();
++
++  return true;
++}
++}  // mindspore
++}  // lite
+\ No newline at end of file
+diff --git a/mindspore/lite/src/common/hi_app_event/handler_thread.h b/mindspore/lite/src/common/hi_app_event/handler_thread.h
+new file mode 100644
+index 00000000..91e5cc19
+--- /dev/null
++++ b/mindspore/lite/src/common/hi_app_event/handler_thread.h
+@@ -0,0 +1,102 @@
++/**
++ * Copyright 2024 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef LITE_HANDLER_THREAD_H
++#define LITE_HANDLER_THREAD_H
++
++#include <list>
++#include <thread>
++#include <atomic>
++#include <memory>
++#include <functional>
++#include <stdexcept>
++#include <mutex>
++#include <queue>
++#include <iostream>
++#include <string>
++#include <condition_variable>
++
++namespace mindspore {
++namespace lite {
++
++class HandlerThread {
++public:
++  using Runnable = std::function<void()>;
++
++  struct Message {
++    std::string key;
++    Runnable r;
++  };
++
++  class Handler {
++    friend class HandlerThread; // Allow the looper to access the private constructor.
++
++  public:
++    bool Post(HandlerThread::Runnable &&aRunnable);
++
++    /**
++     * 在该线程抛出一个任务，并会移除当前任务等待队列中相同key值的任务
++     * @param key 任务的唯一标志
++     * @param aRunnable 待执行的任务
++     * @return true成功，false失败
++     */
++    bool Post(std::string key, HandlerThread::Runnable && aRunnable);
++
++  public: // construction, since we want the looper to expose it's dispatcher exclusively!
++    explicit Handler(HandlerThread &aLooper);
++
++  private:
++    HandlerThread &assigned_looper_;
++  };
++
++public:
++  HandlerThread();
++
++  ~HandlerThread();
++
++  bool Running() const;
++
++  bool Run();
++
++  void Stop();
++
++  std::shared_ptr<Handler> GetHandler();
++
++private:
++  void RunFunc();
++
++  void AbortAndJoin();
++
++  Runnable Next();
++
++  bool Post(std::string key, HandlerThread::Runnable && aRunnable);
++
++private:
++  std::thread thread_;
++  std::atomic_bool running_;
++  std::atomic_bool abort_requested_;
++
++  std::list<std::shared_ptr<Message>> runnables_;
++  std::recursive_mutex runnables_mutex_;
++
++  std::shared_ptr<Handler> handler_;
++
++  std::mutex mutex_;
++  std::condition_variable condition_;
++};
++}  // mindspore
++}  // lite
++#endif  // LITE_HANDLER_THREAD_H
+diff --git a/mindspore/lite/src/common/hi_app_event/hi_app_event.cc b/mindspore/lite/src/common/hi_app_event/hi_app_event.cc
+new file mode 100644
+index 00000000..ab46cde3
+--- /dev/null
++++ b/mindspore/lite/src/common/hi_app_event/hi_app_event.cc
+@@ -0,0 +1,80 @@
++/**
++ * Copyright 2024 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifdef ENABLE_HI_APP_EVENT
++#include "src/common/hi_app_event/hi_app_event.h"
++#include "src/common/hi_app_event/hi_app_event_config.h"
++#include "app_event.h"
++#include "app_event_processor_mgr.h"
++#include <time.h>
++#include <cstdlib>
++
++namespace mindspore {
++namespace lite {
++namespace {
++constexpr auto kName = "ha_app_event";
++constexpr auto kAppId = "com_huawei_hmos_sdk_ocg";
++constexpr int32_t kTimeOut = 90;
++constexpr int32_t kCondRow = 30;
++constexpr auto kDomain = "api_diagnostic";
++constexpr auto kEventName = "api_exec_end";
++constexpr auto kSdkName = "MindSporeLiteKit";
++constexpr int64_t kAppEventNotHapErrCode = -200;
++static int64_t process_id = -1;
++}
++
++int64_t HiAppEventAddProcessor() {
++  std::srand(std::time(NULL));
++  OHOS::HiviewDFX::HiAppEvent::ReportConfig config;
++  config.name = kName;
++  config.appId = kAppId;
++  config.routeInfo = "AUTO";
++  config.triggerCond.timeout = kTimeOut;
++  config.triggerCond.row = kCondRow;
++  config.eventConfigs.clear();
++  {
++    OHOS::HiviewDFX::HiAppEvent::EventConfig event;
++    event.domain = kDomain;
++    event.name = kEventName;
++    event.isRealTime = false;
++    config.eventConfigs.push_back(event);
++  }
++  if (process_id == -1) {
++    process_id = OHOS::HiviewDFX::HiAppEvent::AppEventProcessorMgr::AddProcessor(config);
++  }
++  return process_id;
++}
++
++void HiAppEventWriteEndEvent(const int result, const int err_code, const std::string &api_name,
++                             const uint64_t begin_time, const std::string &devices) {
++  if (process_id == kAppEventNotHapErrCode) {
++    return;
++  }
++  OHOS::HiviewDFX::HiAppEvent::Event event(kDomain, kEventName, OHOS::HiviewDFX::HiAppEvent::BEHAVIOR);
++  event.AddParam("trans_id", "transId_" + std::to_string(std::rand() + HiAppEventConfig::GetInstance()->GetTimeMs()));
++  event.AddParam("api_name", api_name);
++  event.AddParam("sdk_name", std::string(kSdkName));
++  event.AddParam("begin_time", static_cast<int64_t>(begin_time));
++  event.AddParam("end_time", static_cast<int64_t>(HiAppEventConfig::GetInstance()->GetTimeMs()));
++  event.AddParam("result", result);
++  event.AddParam("error_code", std::to_string(err_code));
++  event.AddParam("context_devices", devices);
++  event.AddParam("api_language", HiAppEventConfig::GetInstance()->GetApiLanguage());
++  OHOS::HiviewDFX::HiAppEvent::Write(event);
++}
++}  // namespace lite
++}  // namespace mindspore
++#endif
+diff --git a/mindspore/lite/src/common/hi_app_event/hi_app_event.h b/mindspore/lite/src/common/hi_app_event/hi_app_event.h
+new file mode 100644
+index 00000000..a5de1ad3
+--- /dev/null
++++ b/mindspore/lite/src/common/hi_app_event/hi_app_event.h
+@@ -0,0 +1,31 @@
++/**
++ * Copyright 2024 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef MINDSPORE_LITE_HI_APP_EVENT_H_
++#define MINDSPORE_LITE_HI_APP_EVENT_H_
++
++#ifdef ENABLE_HI_APP_EVENT
++#include <string>
++
++namespace mindspore {
++namespace lite {
++int64_t HiAppEventAddProcessor();
++void HiAppEventWriteEndEvent(const int result, const int err_code, const std::string &api_name,
++                             const uint64_t begin_time, const std::string &devices = "None");
++}  // namespace lite
++}  // namespace mindspore
++#endif
++#endif  // MINDSPORE_LITE_HI_APP_EVENT_H_
+diff --git a/mindspore/lite/src/common/hi_app_event/hi_app_event_config.cc b/mindspore/lite/src/common/hi_app_event/hi_app_event_config.cc
+new file mode 100644
+index 00000000..c488cd86
+--- /dev/null
++++ b/mindspore/lite/src/common/hi_app_event/hi_app_event_config.cc
+@@ -0,0 +1,57 @@
++/**
++ * Copyright 2024 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifdef ENABLE_HI_APP_EVENT
++#include "src/common/hi_app_event/hi_app_event_config.h"
++#include <ctime>
++
++namespace mindspore {
++namespace lite {
++HiAppEventConfig *HiAppEventConfig::GetInstance() {
++  static HiAppEventConfig instance;
++  return &instance;
++}
++
++HiAppEventConfig::HiAppEventConfig() {
++  if (handler_thread_ == nullptr) {
++    handler_thread_ = std::make_unique<HandlerThread>();
++    handler_thread_->Run();
++    handler_ = handler_thread_->GetHandler();
++  }
++}
++
++HiAppEventConfig::~HiAppEventConfig() {
++}
++
++void HiAppEventConfig::Post(std::function<void()> &&f) {
++  handler_->Post(std::move(f));
++}
++
++void HiAppEventConfig::SetApiLanguage(const std::string &api_language) {
++  api_language_ = api_language;
++}
++
++uint64_t HiAppEventConfig::GetTimeMs() {
++  struct timespec ts = {0, 0};
++  if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
++    return 0;
++  }
++  uint64_t ret_val = static_cast<uint64_t>(ts.tv_sec * 1000LL + ts.tv_nsec / 1000000);
++  return ret_val;
++}
++}  // namespace lite
++}  // namespace mindspore
++#endif
+diff --git a/mindspore/lite/src/common/hi_app_event/hi_app_event_config.h b/mindspore/lite/src/common/hi_app_event/hi_app_event_config.h
+new file mode 100644
+index 00000000..57bee08d
+--- /dev/null
++++ b/mindspore/lite/src/common/hi_app_event/hi_app_event_config.h
+@@ -0,0 +1,45 @@
++/**
++ * Copyright 2024 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef MINDSPORE_LITE_HI_APP_EVENT_CONFIG_H_
++#define MINDSPORE_LITE_HI_APP_EVENT_CONFIG_H_
++
++#ifdef ENABLE_HI_APP_EVENT
++#include <string>
++#include "handler_thread.h"
++
++namespace mindspore {
++namespace lite {
++class HiAppEventConfig {
++public:
++  static HiAppEventConfig *GetInstance();
++  const std::string &GetApiLanguage() const { return api_language_; }
++  void SetApiLanguage(const std::string &api_language);
++  uint64_t GetTimeMs();
++  void Post(std::function<void()> &&f);
++
++private:
++  HiAppEventConfig();
++  ~HiAppEventConfig();
++
++  std::string api_language_ = "ts_api";
++  std::unique_ptr<HandlerThread> handler_thread_{nullptr};
++  std::shared_ptr<HandlerThread::Handler> handler_{nullptr};
++};
++}  // namespace lite
++}  // namespace mindspore
++#endif
++#endif  // MINDSPORE_LITE_HI_APP_EVENT_CONFIG_H_
+diff --git a/mindspore/lite/src/litert/c_api/model_c.cc b/mindspore/lite/src/litert/c_api/model_c.cc
+index 20e1c227..cbbe2dbb 100644
+--- a/mindspore/lite/src/litert/c_api/model_c.cc
++++ b/mindspore/lite/src/litert/c_api/model_c.cc
+@@ -23,6 +23,9 @@
+ #include "src/litert/cxx_api/tensor/tensor_impl.h"
+ #include "src/litert/cxx_api/converters.h"
+ #include "src/litert//cxx_api/model/model_impl.h"
++#ifdef ENABLE_HI_APP_EVENT
++#include "src/common/hi_app_event/hi_app_event_config.h"
++#endif
+ 
+ namespace mindspore {
+ class ModelC {
+@@ -143,6 +146,9 @@ mindspore::MSKernelCallBack ModelC::TransCallBack(const OH_AI_KernelCallBack &oh
+ }  // namespace mindspore
+ 
+ OH_AI_ModelHandle OH_AI_ModelCreate() {
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->SetApiLanguage("c_api");
++#endif
+   auto impl = new (std::nothrow) mindspore::ModelC();
+   if (impl == nullptr) {
+     MS_LOG(ERROR) << "Model implement is nullptr.";
+diff --git a/mindspore/lite/src/litert/cxx_api/model/model.cc b/mindspore/lite/src/litert/cxx_api/model/model.cc
+index 7bbaca5c..2814da41 100644
+--- a/mindspore/lite/src/litert/cxx_api/model/model.cc
++++ b/mindspore/lite/src/litert/cxx_api/model/model.cc
+@@ -37,6 +37,10 @@
+ #include "src/common/decrypt.h"
+ #include "src/common/file_utils.h"
+ #endif
++#ifdef ENABLE_HI_APP_EVENT
++#include "src/common/hi_app_event/hi_app_event.h"
++#include "src/common/hi_app_event/hi_app_event_config.h"
++#endif
+ 
+ namespace mindspore {
+ #ifdef USE_GLOG
+@@ -124,6 +128,13 @@ Status Model::Build(const void *model_data, size_t data_size, ModelType model_ty
+ 
+ Status Model::Build(const void *model_data, size_t data_size, ModelType model_type,
+                     const std::shared_ptr<Context> &model_context) {
++#ifdef ENABLE_HI_APP_EVENT
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++  std::string devices;
++  for (auto device : model_context->MutableDeviceInfo()) {
++    devices += std::to_string(device->GetDeviceType()) + " ";
++  }
++#endif
+   if (impl_ == nullptr) {
+     MS_LOG(ERROR) << "Model implement is null.";
+     return kLiteNullptr;
+@@ -153,6 +164,12 @@ Status Model::Build(const void *model_data, size_t data_size, ModelType model_ty
+   }
+ #endif
+   ret = impl_->Build(model_data, data_size, model_type, model_context);
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([ret, begin_time, devices] {
++    (void)mindspore::lite::HiAppEventWriteEndEvent(ret.StatusCode(), ret.StatusCode(), "OH_AI_ModelBuild", begin_time,
++                                                   devices);
++  });
++#endif
+   if (ret != kSuccess) {
+     return ret;
+   }
+@@ -230,6 +247,13 @@ Status Model::Build(const std::vector<char> &model_path, ModelType model_type,
+ 
+ Status Model::Build(const std::vector<char> &model_path, ModelType model_type,
+                     const std::shared_ptr<Context> &model_context) {
++#ifdef ENABLE_HI_APP_EVENT
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++  std::string devices;
++  for (auto device : model_context->MutableDeviceInfo()) {
++    devices += std::to_string(device->GetDeviceType()) + " ";
++  }
++#endif
+   if (impl_ == nullptr) {
+     MS_LOG(ERROR) << "Model implement is null.";
+     return kLiteNullptr;
+@@ -259,6 +283,12 @@ Status Model::Build(const std::vector<char> &model_path, ModelType model_type,
+   }
+ #endif
+   ret = impl_->Build(CharToString(model_path), model_type, model_context);
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([ret, begin_time, devices] {
++    (void)mindspore::lite::HiAppEventWriteEndEvent(ret.StatusCode(), ret.StatusCode(), "OH_AI_ModelBuildFromFile",
++                                                   begin_time, devices);
++  });
++#endif
+   if (ret != kSuccess) {
+     return ret;
+   }
+@@ -267,6 +297,13 @@ Status Model::Build(const std::vector<char> &model_path, ModelType model_type,
+ 
+ Status Model::Build(GraphCell graph, const std::shared_ptr<Context> &model_context,
+                     const std::shared_ptr<TrainCfg> &train_cfg) {
++#ifdef ENABLE_HI_APP_EVENT
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++  std::string devices;
++  for (auto device : model_context->MutableDeviceInfo()) {
++    devices += std::to_string(device->GetDeviceType()) + " ";
++  }
++#endif
+   std::stringstream err_msg;
+   if (impl_ == nullptr) {
+     MS_LOG(ERROR) << "Model implement is null.";
+@@ -312,15 +349,31 @@ Status Model::Build(GraphCell graph, const std::shared_ptr<Context> &model_conte
+   impl_->SetContext(model_context);
+   impl_->SetGraph(graph.GetGraph());
+   impl_->SetConfig(train_cfg);
+-  return impl_->Build();
++  auto ret = impl_->Build();
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([ret, begin_time, devices] {
++    (void)mindspore::lite::HiAppEventWriteEndEvent(ret.StatusCode(), ret.StatusCode(), "OH_AI_TrainModelBuildFromFile",
++                                                   begin_time, devices);
++  });
++#endif
++  return ret;
+ }
+ 
+ Status Model::Resize(const std::vector<MSTensor> &inputs, const std::vector<std::vector<int64_t>> &dims) {
++#ifdef ENABLE_HI_APP_EVENT
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++#endif
+   if (impl_ == nullptr) {
+     MS_LOG(ERROR) << "Model implement is null.";
+     return kLiteNullptr;
+   }
+-  return impl_->Resize(inputs, dims);
++  auto ret = impl_->Resize(inputs, dims);
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([ret, begin_time] {
++    (void)mindspore::lite::HiAppEventWriteEndEvent(ret.StatusCode(), ret.StatusCode(), "OH_AI_ModelResize", begin_time);
++  });
++#endif
++  return ret;
+ }
+ 
+ Status Model::UpdateWeights(const std::vector<MSTensor> &new_weights) {
+@@ -332,22 +385,40 @@ Status Model::UpdateWeights(const std::vector<MSTensor> &new_weights) {
+ }
+ 
+ Status Model::RunStep(const MSKernelCallBack &before, const MSKernelCallBack &after) {
++#ifdef ENABLE_HI_APP_EVENT
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++#endif
+   if (impl_ == nullptr) {
+     MS_LOG(ERROR) << "Model implement is null.";
+     return kLiteNullptr;
+   }
+   auto inputs = impl_->GetInputs();
+   auto outputs = impl_->GetOutputs();
+-  return impl_->Predict(inputs, &outputs, before, after);
++  auto ret = impl_->Predict(inputs, &outputs, before, after);
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([ret, begin_time] {
++    (void)mindspore::lite::HiAppEventWriteEndEvent(ret.StatusCode(), ret.StatusCode(), "OH_AI_RunStep", begin_time);
++  });
++#endif
++  return ret;
+ }
+ 
+ Status Model::Predict(const std::vector<MSTensor> &inputs, std::vector<MSTensor> *outputs,
+                       const MSKernelCallBack &before, const MSKernelCallBack &after) {
++#ifdef ENABLE_HI_APP_EVENT
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++#endif
+   if (impl_ == nullptr) {
+     MS_LOG(ERROR) << "Model implement is null.";
+     return kLiteNullptr;
+   }
+-  return impl_->Predict(inputs, outputs, before, after);
++  auto ret = impl_->Predict(inputs, outputs, before, after);
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([ret, begin_time] {
++    mindspore::lite::HiAppEventWriteEndEvent(ret.StatusCode(), ret.StatusCode(), "OH_AI_ModelPredict", begin_time);
++  });
++#endif
++  return ret;
+ }
+ 
+ Status Model::Predict(const MSKernelCallBack &before, const MSKernelCallBack &after) {
+@@ -375,6 +446,10 @@ bool Model::HasPreprocess() {
+ }
+ 
+ Model::Model() {
++#ifdef ENABLE_HI_APP_EVENT
++  (void)mindspore::lite::HiAppEventAddProcessor();
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++#endif
+ #ifdef USE_GLOG
+   mindspore::mindspore_log_init();
+ #endif
+@@ -382,6 +457,11 @@ Model::Model() {
+   if (impl_ == nullptr) {
+     MS_LOG(ERROR) << "Failed to create ModelImpl";
+   }
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([begin_time] {
++    (void)mindspore::lite::HiAppEventWriteEndEvent(RET_OK, RET_OK, "OH_AI_ModelCreate", begin_time);
++  });
++#endif
+ }
+ 
+ Model::~Model() {}
+@@ -489,11 +569,19 @@ Status Model::UpdateConfig(const std::vector<char> &section,
+ }
+ 
+ Status Model::SetTrainMode(bool train) {
++#ifdef ENABLE_HI_APP_EVENT
++  uint64_t begin_time = mindspore::lite::HiAppEventConfig::GetInstance()->GetTimeMs();
++#endif
+   if ((impl_ == nullptr) || (impl_->session_ == nullptr)) {
+     MS_LOG(ERROR) << "Model is null.";
+     return kLiteUninitializedObj;
+   }
+   auto ret = (train) ? impl_->session_->Train() : impl_->session_->Eval();
++#ifdef ENABLE_HI_APP_EVENT
++  mindspore::lite::HiAppEventConfig::GetInstance()->Post([begin_time] {
++    (void)mindspore::lite::HiAppEventWriteEndEvent(RET_OK, RET_OK, "OH_AI_ModelSetTrainMode", begin_time);
++  });
++#endif
+   return (ret == mindspore::lite::RET_OK) ? kSuccess : kLiteError;
+ }
+ 
+-- 
+2.17.1
+

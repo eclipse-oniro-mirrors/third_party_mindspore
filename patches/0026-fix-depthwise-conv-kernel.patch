@@ -1,0 +1,39 @@
+From 48ef088b1f2d594b4d756c19574ead05492d3f84 Mon Sep 17 00:00:00 2001
+From: zhangyanhui <zhangyanhui17@huawei.com>
+Date: Mon, 8 Jul 2024 18:27:42 +0800
+Subject: [PATCH] bugfix for depthwise when kernel size is longer than input_w
+
+---
+ .../device/cpu/kernel/nnacl/assembly/arm32/ConvDwFp32Row.S      | 2 +-
+ .../device/cpu/kernel/nnacl/assembly/arm64/ConvDwFp32Row.S      | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm32/ConvDwFp32Row.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm32/ConvDwFp32Row.S
+index 8d1d819d..19750920 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm32/ConvDwFp32Row.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm32/ConvDwFp32Row.S
+@@ -35,7 +35,7 @@ asm_function ConvDwFp32Row
+     mov r6, #4
+     mul r5, r5, r6
+     cmp r3, #0
+-    beq End
++    ble End
+ 
+     LoopNumPixel:
+         mov r6, r1   // input_ptr
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/ConvDwFp32Row.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/ConvDwFp32Row.S
+index 417aa4ce..e50e2ee5 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/ConvDwFp32Row.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/ConvDwFp32Row.S
+@@ -30,7 +30,7 @@ asm_function ConvDwFp32Row
+     // x19 ~ x29 should be also preserved
+     // whereas our coding style do not permit such amount of parameters
+ cmp x3, #0
+-beq End
++ble End
+ 
+ mov x9, x0
+ mov x12, #4
+-- 
+2.25.1
+

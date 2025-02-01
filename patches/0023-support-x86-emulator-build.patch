@@ -1,0 +1,500 @@
+From a80a695b3f6ce3118cc01c31359762cfac35f02d Mon Sep 17 00:00:00 2001
+From: zhangyanhui <zhangyanhui17@huawei.com>
+Date: Thu, 13 Jun 2024 14:23:56 +0800
+Subject: [PATCH] 0023-support-x86-emulator-build
+
+---
+ .../plugin/device/cpu/kernel/nnacl/BUILD.gn   | 92 +++++++++++++++----
+ mindspore/lite/BUILD.gn                       | 60 ++++++------
+ mindspore/lite/src/common/thread_utils.cc     |  2 +-
+ mindspore/lite/src/litert/kernel/cpu/BUILD.gn | 28 +++++-
+ .../cpu/fp32/convolution_delegate_fp32.cc     |  2 +
+ ...volution_depthwise_slidewindow_x86_fp32.cc |  4 +-
+ ...nvolution_depthwise_slidewindow_x86_fp32.h |  2 +-
+ 7 files changed, 138 insertions(+), 52 deletions(-)
+
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn
+index d27817be..387a675a 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn
+@@ -46,7 +46,6 @@ config("nnacl_public_config") {
+     }
+   } else if (target_cpu == "x86_64") {
+     cflags_c += [
+-      "-mavx512f",
+       "-mavx",
+       "-mavx2",
+       "-mfma",
+@@ -56,8 +55,16 @@ config("nnacl_public_config") {
+     defines += [
+       "ENABLE_SSE",
+       "ENABLE_AVX",
+-      "ENABLE_AVX512",
+     ]
++    # emulator not support avx512
++    if (!is_emulator) {
++      cflags_c += [
++        "-mavx512f",
++      ]
++      defines += [
++        "ENABLE_AVX512",
++      ]
++    }
+   }
+ }
+ 
+@@ -102,7 +109,6 @@ c_kernel_sources = [
+   "kernel/convolution_depthwise_sw.c",
+   "kernel/convolution_im2col_arm32.c",
+   "kernel/convolution_im2col_arm64.c",
+-  "kernel/convolution_im2col_avx512.c",
+   "kernel/convolution_im2col_avx.c",
+   "kernel/convolution_im2col_base.c",
+   "kernel/convolution_im2col.c",
+@@ -136,7 +142,6 @@ c_kernel_sources = [
+   "kernel/log_softmax.c",
+   "kernel/matmul_arm32.c",
+   "kernel/matmul_arm64.c",
+-  "kernel/matmul_avx512.c",
+   "kernel/matmul_avx.c",
+   "kernel/matmul_base.c",
+   "kernel/matmul.c",
+@@ -169,10 +174,6 @@ c_kernel_sources = [
+   "kernel/zeros_like.c",
+ ]
+ 
+-# list of ${NNACL_DIR}/experimental/*.c
+-experimental_kernel_sources = [
+-]
+-
+ # list of ${NNACL_DIR}/base/*.c
+ base_kernel_sources = [
+   "base/arithmetic_base.c",
+@@ -221,7 +222,6 @@ fp32_kernel_sources = [
+   "fp32/conv_common_fp32.c",
+   "fp32/conv_depthwise_avx_fp32.c",
+   "fp32/conv_depthwise_fp32.c",
+-  "fp32/conv_im2col_avx512_fp32.c",
+   "fp32/conv_im2col_fp32.c",
+   "fp32/conv_sw_arm64_fp32.c",
+   "fp32/conv_sw_avx_fp32.c",
+@@ -246,8 +246,6 @@ fp32_kernel_sources = [
+   "fp32/local_response_norm_fp32.c",
+   "fp32/log_softmax_fp32.c",
+   "fp32/lstm_fp32.c",
+-  "fp32/matmul_avx512_fp32.c",
+-  "fp32/matmul_avx512_mask_fp32.c",
+   "fp32/matmul_avx_fp32.c",
+   "fp32/matmul_fp32.c",
+   "fp32/mul_fp32.c",
+@@ -784,6 +782,13 @@ sse_avx_avx512_sources = [
+   "assembly/avx/MatmulAvx.S",
+ ]
+ 
++# only x86_64 real machine support avx512
++if (target_cpu == "x86_64" && !is_emulator) {
++  sse_avx_avx512_sources += [
++    "assembly/avx512/ConvDwFp32RowAVX512.S",
++  ]
++}
++
+ gemm_avx512_kernel_sources = [
+   "experimental/HPC-generator/gemm_avx512/nnacl_gemm_avx512_10x16_kernel_nhwc_fp32.c",
+   "experimental/HPC-generator/gemm_avx512/nnacl_gemm_avx512_10x32_kernel_nhwc_fp32.c",
+@@ -834,16 +839,64 @@ gemm_avx512_kernel_sources = [
+   "experimental/HPC-generator/gemm_avx512/nnacl_gemm_avx512_9x32_kernel_nhwc_fp32.c",
+ ]
+ 
++gemm_mask_avx512_kernel_sources = [
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_10x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_10x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_11x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_11x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_12x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_12x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_1x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_1x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_1x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_1x64_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_1x80_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_1x96_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_2x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_2x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_2x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_2x64_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_2x80_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_2x96_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_3x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_3x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_3x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_3x64_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_3x80_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_3x96_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_4x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_4x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_4x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_4x64_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_4x80_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_4x96_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_5x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_5x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_5x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_5x64_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_5x80_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_6x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_6x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_6x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_6x64_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_7x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_7x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_7x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_8x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_8x32_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_8x48_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_9x16_mask_kernel_nhwc_fp32.c",
++  "experimental/HPC-generator/gemm_mask_avx512/nnacl_gemm_mask_avx512_9x32_mask_kernel_nhwc_fp32.c",
++]
++
+ fp32_kernel_sources -= no_fast_math_fp32_kernel_sources
+ fp32_kernel_sources -= avx_fp32_kernel_sources
+-fp32_kernel_sources -= avx512_fp32_kernel_sources
+ fp32_kernel_sources -= arm64_fp32_kernel_sources
+ 
+ # source files on all target
+ nnacl_sources = common_sources
+ nnacl_sources += base_kernel_sources
+ nnacl_sources += c_kernel_sources
+-nnacl_sources += experimental_kernel_sources
+ nnacl_sources += fp32_kernel_sources
+ nnacl_sources += fp32_sparse_kernel_sources
+ nnacl_sources += fp32_grad_kernel_sources
+@@ -854,7 +907,6 @@ nnacl_sources += infer_control_sources
+ 
+ # source files on arm32
+ arm_only_sources = arm32_assembly_sources
+-#arm_only_sources += arm32_fp16_assembly_sources
+ not_needed(arm32_fp16_assembly_sources)
+ 
+ # source files on arm64
+@@ -868,8 +920,16 @@ arm64_only_sources += arm64_fp32_kernel_sources
+ # sources files on x86_64
+ x86_64_only_sources = sse_avx_avx512_sources
+ x86_64_only_sources += avx_fp32_kernel_sources
+-x86_64_only_sources += avx512_fp32_kernel_sources
+-x86_64_only_sources += gemm_avx512_kernel_sources
++# emulator not support avx512
++if (is_emulator) {
++  not_needed(avx512_fp32_kernel_sources)
++  not_needed(gemm_avx512_kernel_sources)
++  not_needed(gemm_mask_avx512_kernel_sources)
++} else {
++  x86_64_only_sources += avx512_fp32_kernel_sources
++  x86_64_only_sources += gemm_avx512_kernel_sources
++  x86_64_only_sources += gemm_mask_avx512_kernel_sources
++}
+ 
+ if (target_cpu == "arm") {
+   nnacl_sources += arm_only_sources
+diff --git a/mindspore/lite/BUILD.gn b/mindspore/lite/BUILD.gn
+index 467cdb6a..124c84c9 100644
+--- a/mindspore/lite/BUILD.gn
++++ b/mindspore/lite/BUILD.gn
+@@ -118,12 +118,6 @@ control_flow_kernel_sources = [
+   "src/control_flow/kernel/identity_kernel.cc",
+ ]
+ 
+-experimental_sources = [
+-]
+-
+-string_kernel_source = [
+-]
+-
+ auto_parallel_source = [
+   "src/litert/sub_graph_split.cc"
+ ]
+@@ -186,19 +180,11 @@ lite_mindrt_sources = [
+ all_lite_sources += cxx_api_sources
+ all_lite_sources += api_source
+ all_lite_sources += control_flow_kernel_sources
+-all_lite_sources += experimental_sources
+-all_lite_sources += string_kernel_source
+ all_lite_sources += auto_parallel_source
+ all_lite_sources += custom_registry_sources
+ all_lite_sources += weight_decode_source
+ all_lite_sources += lite_mindrt_sources
+ 
+-ops_base_sources = [
+-#  "src/common/ops/anf_utils.cc", # disable runtiem convert
+-#  "src/common/ops/ops_def.cc", # disable kernel executor
+-#  "src/common/ops/ops_utils.cc" # disable kernel executor
+-]
+-
+ basic_populate_sources = [
+   "src/common/ops/populate/activation_grad_populate.cc",
+   "src/common/ops/populate/activation_populate.cc",
+@@ -346,8 +332,7 @@ control_populate_sources = [
+   "src/common/ops/populate/control/tensorliststack_populate.cc",
+ ]
+ 
+-all_ops_sources = ops_base_sources
+-all_ops_sources += basic_populate_sources
++all_ops_sources = basic_populate_sources
+ all_ops_sources += string_populate_sources
+ all_ops_sources += control_populate_sources
+ 
+@@ -360,6 +345,12 @@ missing_sources = [
+ 
+ all_sources += missing_sources
+ 
++SUPPORT_NNRT = false
++# currently, only arm/arm64 real machine support nnrt
++if ((target_cpu == "arm" || target_cpu == "arm64") && !is_emulator) {
++  SUPPORT_NNRT = true
++}
++
+ ohos_shared_library("mindspore_lib") {
+   deps = [
+     "../ccsrc/plugin/device/cpu/kernel/nnacl/:nnacl_obj",
+@@ -387,7 +378,6 @@ ohos_shared_library("mindspore_lib") {
+     "../ccsrc/",
+     "src/litert/kernel/cpu/",
+     "../core/mindrt/src/",
+-    "//foundation/ai/neural_network_runtime/",
+   ]
+ 
+   defines = [
+@@ -418,6 +408,17 @@ ohos_shared_library("mindspore_lib") {
+       "CL_HPP_TARGET_OPENCL_VERSION=120",
+       "CL_HPP_MINIMUM_OPENCL_VERSION=120",
+     ]
++  } else if (target_cpu == "x86_64") {
++    defines += [
++      "ENABLE_SSE",
++      "ENABLE_AVX",
++    ]
++    # emulator not support avx512
++    if (!is_emulator) {
++      defines += [
++        "ENABLE_AVX512",
++      ]
++    }
+   }
+ 
+   configs = [
+@@ -434,10 +435,10 @@ ohos_shared_library("mindspore_lib") {
+   output_name = "libmindspore-lite"
+   output_extension = "so"
+   innerapi_tags = [ "platformsdk" ]
+-  SUPPORT_NNRT = true
+   if (SUPPORT_NNRT) {
+     if (mindspore_feature_nnrt_metagraph) {
+       defines += [ "SUPPORT_NNRT_METAGRAPH" ]
++      sources += [ "src/litert/delegate/nnrt/hiai_foundation_wrapper.cc", ]
+       print("enabled feature: mindspore_feature_nnrt_metagraph")
+     }
+     sources += [
+@@ -445,7 +446,6 @@ ohos_shared_library("mindspore_lib") {
+       "src/litert/delegate/nnrt/nnrt_delegate.cc",
+       "src/litert/delegate/nnrt/nnrt_model_kernel.cc",
+       "src/litert/delegate/nnrt/nnrt_allocator.cc",
+-      "src/litert/delegate/nnrt/hiai_foundation_wrapper.cc",
+       "src/litert/delegate/nnrt/extension_options_parser.cc",
+     ]
+     include_dirs += [
+@@ -453,6 +453,7 @@ ohos_shared_library("mindspore_lib") {
+       "../../mindspore/core/ir",
+       "mindir/include",
+       "mindir/inner_headers",
++      "//foundation/ai/neural_network_runtime/",
+     ]
+ 
+     external_deps += [ "neural_network_runtime:nnrt_target" ]
+@@ -499,11 +500,9 @@ ohos_shared_library("mindspore_ndk") {
+     "../../third_party/",
+     "./schema/",
+     "../ccsrc/",
+-    "//foundation/ai/neural_network_runtime/",
+   ]
+ 
+   defines = [
+-    "SUPPORT_NNRT",
+     "MS_COMPILE_OHOS",
+     "PRIMITIVE_WRITEABLE",
+     "RUNTIME_PASS_CLIP",
+@@ -512,9 +511,18 @@ ohos_shared_library("mindspore_ndk") {
+     "ENABLE_HI_APP_EVENT",
+   ]
+ 
+-  if (mindspore_feature_nnrt_metagraph) {
+-    defines += [ "SUPPORT_NNRT_METAGRAPH" ]
+-    print("enabled feature: mindspore_feature_nnrt_metagraph")
++  if (SUPPORT_NNRT) {
++    include_dirs += [
++      "//foundation/ai/neural_network_runtime/",
++    ]
++    defines += [
++      "SUPPORT_NNRT",
++    ]
++    if (mindspore_feature_nnrt_metagraph) {
++      defines += [ "SUPPORT_NNRT_METAGRAPH" ]
++      print("enabled feature: mindspore_feature_nnrt_metagraph")
++    }
++    external_deps = [ "neural_network_runtime:nnrt_target" ]
+   }
+ 
+   configs = [
+@@ -523,8 +531,6 @@ ohos_shared_library("mindspore_ndk") {
+     ":secure_option",
+   ]
+ 
+-  external_deps = [ "neural_network_runtime:nnrt_target" ]
+-
+   remove_configs = [ "//build/config/compiler:no_rtti" ]
+ 
+   output_name = "libmindspore_lite_ndk"
+@@ -749,4 +755,4 @@ config("secure_option") {
+ 
+ config("train_kernel_option") {
+   cflags_cc = [ "-fno-finite-math-only" ]
+-}
++}
+\ No newline at end of file
+diff --git a/mindspore/lite/src/common/thread_utils.cc b/mindspore/lite/src/common/thread_utils.cc
+index 28c8e1cd..28c7acab 100644
+--- a/mindspore/lite/src/common/thread_utils.cc
++++ b/mindspore/lite/src/common/thread_utils.cc
+@@ -17,7 +17,7 @@
+ #if defined(__linux__) && !defined(ENABLE_ARM)
+ #include "src/common/thread_utils.h"
+ #include <sys/stat.h>
+-#include <wait.h>
++#include <sys/wait.h>
+ #include "src/common/log_adapter.h"
+ 
+ namespace mindspore {
+diff --git a/mindspore/lite/src/litert/kernel/cpu/BUILD.gn b/mindspore/lite/src/litert/kernel/cpu/BUILD.gn
+index 297fc6f6..d51b9f4a 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/BUILD.gn
++++ b/mindspore/lite/src/litert/kernel/cpu/BUILD.gn
+@@ -52,7 +52,6 @@ cpu_kernel_sources = [
+     "fp32/convolution_fp32.cc",
+     "fp32/convolution_im2col_arm32_fp32.cc",
+     "fp32/convolution_im2col_arm64_fp32.cc",
+-    "fp32/convolution_im2col_avx512_fp32.cc",
+     "fp32/convolution_im2col_avx_fp32.cc",
+     "fp32/convolution_im2col_base_fp32.cc",
+     "fp32/convolution_im2col_fp32.cc",
+@@ -90,7 +89,6 @@ cpu_kernel_sources = [
+     "fp32/lstm_non_mindir_fp32.cc",
+     "fp32/matmul_fp32_arm32.cc",
+     "fp32/matmul_fp32_arm64.cc",
+-    "fp32/matmul_fp32_avx512.cc",
+     "fp32/matmul_fp32_avx.cc",
+     "fp32/matmul_fp32_base.cc",
+     "fp32/matmul_fp32.cc",
+@@ -125,7 +123,7 @@ cpu_kernel_sources = [
+ ]
+ 
+ if ((target_cpu != "arm") && (target_cpu != "arm64")) {
+-    cpu_kernel_sources += [ "src/runtime/kernel/cpu/fp32/cast_for_x86_fp16.cc" ]
++    cpu_kernel_sources += [ "fp32/cast_for_x86_fp16.cc" ]
+ }
+ 
+ arm64_cpu_kernel_sources = [
+@@ -148,8 +146,6 @@ sse_avx_avx512_kernel_sources = [
+   "fp32/convolution_im2col_avx_fp32.cc",
+   "fp32/matmul_fp32_avx.cc",
+   "fp32/convolution_winograd_avx_fp32.cc",
+-  "fp32/convolution_im2col_avx512_fp32.cc",
+-  "fp32/matmul_fp32_avx512.cc",
+ ]
+ 
+ fp16_kernel_sources = [
+@@ -272,6 +268,18 @@ control_kernel_sources = [
+     "control/tensorlist_stack.cc",
+ ]
+ 
++# emulator not support avx512
++if (!is_emulator) {
++  cpu_kernel_sources += [
++    "fp32/convolution_im2col_avx512_fp32.cc",
++    "fp32/matmul_fp32_avx512.cc",
++  ]
++  sse_avx_avx512_kernel_sources += [
++    "fp32/convolution_im2col_avx512_fp32.cc",
++    "fp32/matmul_fp32_avx512.cc",
++  ]
++}
++
+ all_cpu_kernel_sources = cpu_kernel_sources
+ all_cpu_kernel_sources += int8_kernel_sources
+ all_cpu_kernel_sources += string_kernel_sources
+@@ -348,6 +356,16 @@ ohos_source_set("cpu_kernel_obj") {
+       "CL_HPP_TARGET_OPENCL_VERSION=120",
+       "CL_HPP_MINIMUM_OPENCL_VERSION=120",
+     ]
++  } else if (target_cpu == "x86_64") {
++    defines += [
++      "ENABLE_SSE",
++      "ENABLE_AVX",
++    ]
++    if (!is_emulator) {
++      defines += [
++        "ENABLE_AVX512",
++      ]
++    }
+   }
+ 
+   cflags_cc = [
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_delegate_fp32.cc b/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_delegate_fp32.cc
+index f907bbbf..ac693c44 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_delegate_fp32.cc
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_delegate_fp32.cc
+@@ -49,7 +49,9 @@ using mindspore::schema::PrimitiveType_Conv2DFusion;
+ 
+ namespace mindspore::kernel {
+ namespace {
++#ifndef ENABLE_AVX
+ constexpr int kMaxDwConvSWSize = 32;
++#endif
+ }  // namespace
+ 
+ float *ConvolutionDelegateCPUKernel::CopyData(const lite::Tensor *tensor) {
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.cc b/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.cc
+index 568b9463..d35669ce 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.cc
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.cc
+@@ -106,7 +106,7 @@ int ConvolutionDepthwiseSWCPUKernelX86::ReSize() {
+   return RET_OK;
+ }
+ 
+-int ConvolutionDepthwiseSWCPUKernelX86::Execute(int task_id) {
++int ConvolutionDepthwiseSWCPUKernelX86::DoExecute(int task_id) {
+   DepthwiseSWAvxFp32(packed_output_, packed_input_, reinterpret_cast<float *>(packed_weight_),
+                      reinterpret_cast<float *>(bias_data_), conv_param_, sliding_, task_id);
+   return RET_OK;
+@@ -114,7 +114,7 @@ int ConvolutionDepthwiseSWCPUKernelX86::Execute(int task_id) {
+ 
+ int ConvDwSWAvxRun(void *cdata, int task_id, float lhs_scale, float rhs_scale) {
+   auto conv_dw = reinterpret_cast<ConvolutionDepthwiseSWCPUKernelX86 *>(cdata);
+-  auto ret = conv_dw->Execute(task_id);
++  auto ret = conv_dw->DoExecute(task_id);
+   if (ret != RET_OK) {
+     MS_LOG(ERROR) << "ConvolutionDepthwiseSWRun in x86 error task_id[" << task_id << "] error_code[" << ret << "]";
+     return RET_ERROR;
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.h b/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.h
+index e959fe45..928321e5 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.h
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32/convolution_depthwise_slidewindow_x86_fp32.h
+@@ -35,7 +35,7 @@ class ConvolutionDepthwiseSWCPUKernelX86 : public ConvolutionBaseCPUKernel {
+   int ReSize() override;
+   int Run() override;
+ 
+-  int Execute(int task_id);
++  int DoExecute(int task_id);
+ 
+  private:
+   void FreePackedInputOutput();
+-- 
+2.25.1
+

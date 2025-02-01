@@ -1,0 +1,343 @@
+From 17b5a08e7c53b25a912bcc9d65cc47febb7fc835 Mon Sep 17 00:00:00 2001
+From: zhangyanhui <zhangyanhui17@huawei.com>
+Date: Tue, 30 Jan 2024 16:23:22 +0800
+Subject: [PATCH] 0010-micro
+
+---
+ .../lite/include/registry/deobf_processor.h   |  2 +-
+ .../config_parser/config_file_parser.cc       |  8 +--
+ .../config_parser/config_file_parser.h        |  2 +-
+ .../config_parser/micro_param_parser.cc       |  8 +--
+ .../config_parser/micro_param_parser.h        |  3 +-
+ mindspore/lite/tools/converter/converter.cc   | 10 ++--
+ .../lite/tools/converter/micro/coder/coder.cc |  1 +
+ .../lite/tools/converter/micro/coder/config.h |  9 ++++
+ .../generator/component/common_component.cc   | 49 ++++++++++++++++---
+ .../component/const_blocks/calib_output.cc    | 19 +++++++
+ .../component/const_blocks/mtensor.cc         |  2 +-
+ 11 files changed, 90 insertions(+), 23 deletions(-)
+
+diff --git a/mindspore/lite/include/registry/deobf_processor.h b/mindspore/lite/include/registry/deobf_processor.h
+index 5987233f..c70735b2 100644
+--- a/mindspore/lite/include/registry/deobf_processor.h
++++ b/mindspore/lite/include/registry/deobf_processor.h
+@@ -21,7 +21,7 @@
+ #include <string>
+ #include <numeric>
+ #include "src/common/prim_util.h"
+-#include "src/common/log.h"
++#include "src/common/log_adapter.h"
+ #include "include/model.h"
+ #include "schema/inner/model_generated.h"
+ 
+diff --git a/mindspore/lite/tools/converter/config_parser/config_file_parser.cc b/mindspore/lite/tools/converter/config_parser/config_file_parser.cc
+index 7b47fb8c..eed1c1ef 100644
+--- a/mindspore/lite/tools/converter/config_parser/config_file_parser.cc
++++ b/mindspore/lite/tools/converter/config_parser/config_file_parser.cc
+@@ -230,7 +230,7 @@ int ParseInputShapeTemplate(const std::string &shape_template, std::set<std::str
+   return RET_OK;
+ }
+ 
+-int ParseDynmiacDimTemplate(const std::string &dims_template, std::set<std::string> *dynamic_symbols,
++int ParseDynamicDimTemplate(const std::string &dims_template, std::set<std::string> *dynamic_symbols,
+                             MicroParamString *micro_param_string) {
+   // the dynamic_dim_params config is like: d0:[1,3~6];d1:[1~8]
+   auto dim_info_vec = SplitStringToVector(dims_template, ';');
+@@ -259,7 +259,7 @@ int ParseDynmiacDimTemplate(const std::string &dims_template, std::set<std::stri
+           MS_LOG(ERROR) << "the dynamic_dim_params range value must be greater than 0";
+           return RET_INPUT_PARAM_INVALID;
+         }
+-        micro_param_string->dynamic_symbols_map[symbol] += continuous_dim[0] + ",";
++        micro_param_string->dynamic_symbols_map[symbol].emplace_back(std::stoi(continuous_dim[0]));
+         continue;
+       }
+       if (!IsNumber(continuous_dim[0]) || std::stoi(continuous_dim[0]) <= 0 || !IsNumber(continuous_dim[1]) ||
+@@ -270,7 +270,7 @@ int ParseDynmiacDimTemplate(const std::string &dims_template, std::set<std::stri
+       auto start = std::stoi(continuous_dim[0]);
+       auto end = std::stoi(continuous_dim[1]);
+       for (auto i = start; i <= end; ++i) {
+-        micro_param_string->dynamic_symbols_map[symbol] += std::to_string(i) + ",";
++        micro_param_string->dynamic_symbols_map[symbol].emplace_back(i);
+       }
+     }
+   }
+@@ -597,7 +597,7 @@ int ConfigFileParser::ParseMicroParamString(const std::map<std::string, std::map
+   const std::string dynamic_dims = "dynamic_dim_params";
+   if (!dynamic_symbols.empty() && map.find(dynamic_dims) != map.end()) {
+     const auto &dims_template = map.at(dynamic_dims);
+-    ParseDynmiacDimTemplate(dims_template, &dynamic_symbols, &micro_param_string_);
++    ParseDynamicDimTemplate(dims_template, &dynamic_symbols, &micro_param_string_);
+   }
+   std::map<std::string, std::string &> parse_map{
+     {"target", micro_param_string_.target},
+diff --git a/mindspore/lite/tools/converter/config_parser/config_file_parser.h b/mindspore/lite/tools/converter/config_parser/config_file_parser.h
+index 163782b7..b6267c0c 100644
+--- a/mindspore/lite/tools/converter/config_parser/config_file_parser.h
++++ b/mindspore/lite/tools/converter/config_parser/config_file_parser.h
+@@ -110,7 +110,7 @@ struct MicroParamString {
+   std::string changeable_weights_name;
+   std::string inputs_shape;
+   std::string dynamic_dim_params;
+-  std::map<std::string, std::string> dynamic_symbols_map;
++  std::map<std::string, std::vector<int>> dynamic_symbols_map;
+ };
+ 
+ struct ThirdPartyModelString {
+diff --git a/mindspore/lite/tools/converter/config_parser/micro_param_parser.cc b/mindspore/lite/tools/converter/config_parser/micro_param_parser.cc
+index 903f2863..da5b46eb 100644
+--- a/mindspore/lite/tools/converter/config_parser/micro_param_parser.cc
++++ b/mindspore/lite/tools/converter/config_parser/micro_param_parser.cc
+@@ -117,7 +117,7 @@ STATUS MicroParamParser::ParseChangeableWeightsName(const std::string &changeabl
+ }
+ 
+ STATUS MicroParamParser::ParseGraphInputsShapeTemplate(const std::string &graph_inputs_shape_template,
+-                                                       const std::map<std::string, std::string> &dynamic_symbols_map,
++                                                       const std::map<std::string, std::vector<int>> &dynamic_symbols_map,
+                                                        micro::MicroParam *micro_param) {
+   MS_LOG(DEBUG) << "Micro record inputs shape: " << graph_inputs_shape_template;
+   if (!graph_inputs_shape_template.empty()) {
+@@ -145,9 +145,8 @@ STATUS MicroParamParser::ParseGraphInputsShapeTemplate(const std::string &graph_
+     for (const auto &item : dynamic_symbols_map) {
+       symbols_index[item.first] = index++;
+       symbols.push_back(item.first);
+-      auto num_str_list = SplitStringToVector(item.second, ',');
+-      for (const auto &num_str : num_str_list) {
+-        symbols_to_num[item.first].push_back(std::stoi(num_str));
++      for (const auto &num : item.second) {
++        symbols_to_num[item.first].push_back(num);
+       }
+       if (symbols_to_num[item.first].empty()) {
+         MS_LOG(ERROR) << "Micro param invalid, dynamic symbol must have value.";
+@@ -158,6 +157,7 @@ STATUS MicroParamParser::ParseGraphInputsShapeTemplate(const std::string &graph_
+     }
+     micro_param->dynamic_symbols = symbols;
+     micro_param->dynamic_symbols_num = scene_num_by_symbol;
++    micro_param->dynamic_symbols_map = dynamic_symbols_map;
+     std::vector<size_t> post_multi(symbols.size(), 1);
+     for (int i = static_cast<int>(post_multi.size()) - 2; i >= 0; --i) {
+       post_multi[i] = post_multi[i + 1] * scene_num_by_symbol[i + 1];
+diff --git a/mindspore/lite/tools/converter/config_parser/micro_param_parser.h b/mindspore/lite/tools/converter/config_parser/micro_param_parser.h
+index eb95c571..fe818b90 100644
+--- a/mindspore/lite/tools/converter/config_parser/micro_param_parser.h
++++ b/mindspore/lite/tools/converter/config_parser/micro_param_parser.h
+@@ -17,6 +17,7 @@
+ #define MINDSPORE_LITE_TOOLS_CONVERTER_CONFIG_PARSER_MICRO_PARAM_PARSER_H_
+ 
+ #include <string>
++#include <vector>
+ #include "tools/converter/config_parser/config_file_parser.h"
+ #include "tools/converter/micro/coder/config.h"
+ #include "include/errorcode.h"
+@@ -38,7 +39,7 @@ class MicroParamParser {
+   STATUS ParseKeepOriginalWeight(const std::string &keep_weight, micro::MicroParam *micro_param);
+   STATUS ParseChangeableWeightsName(const std::string &changeable_weights_name, micro::MicroParam *micro_param);
+   STATUS ParseGraphInputsShapeTemplate(const std::string &graph_inputs_shape_template,
+-                                       const std::map<std::string, std::string> &dynamic_symbols_map,
++                                       const std::map<std::string, std::vector<int>> &dynamic_symbols_map,
+                                        micro::MicroParam *micro_param);
+ };
+ }  // namespace lite
+diff --git a/mindspore/lite/tools/converter/converter.cc b/mindspore/lite/tools/converter/converter.cc
+index 4703e889..e2a5e6a1 100644
+--- a/mindspore/lite/tools/converter/converter.cc
++++ b/mindspore/lite/tools/converter/converter.cc
+@@ -455,10 +455,12 @@ int ConverterImpl::InitConfigParam(const std::shared_ptr<ConverterPara> &param,
+       MS_LOG(ERROR) << "Parse mixed bit weight quant param failed.";
+       return ret;
+     }
+-    ret = lite::ThirdPartyParamParser::Parse(config_parser.GetThirdPartyModelString(), &param->thirdPartyModelParam);
+-    if (ret != RET_OK) {
+-      MS_LOG(ERROR) << "Parse third party param failed.";
+-      return ret;
++    if (param->fmk_type == converter::kFmkTypeThirdParty) {
++      ret = lite::ThirdPartyParamParser::Parse(config_parser.GetThirdPartyModelString(), &param->thirdPartyModelParam);
++      if (ret != RET_OK) {
++        MS_LOG(ERROR) << "Parse third party param failed.";
++        return ret;
++      }
+     }
+     ret = InitExtendedIntegrationInfo(param, config_parser);
+     if (ret != RET_OK) {
+diff --git a/mindspore/lite/tools/converter/micro/coder/coder.cc b/mindspore/lite/tools/converter/micro/coder/coder.cc
+index a502500d..065cbdfd 100644
+--- a/mindspore/lite/tools/converter/micro/coder/coder.cc
++++ b/mindspore/lite/tools/converter/micro/coder/coder.cc
+@@ -238,6 +238,7 @@ int Coder::Init(const MicroParam &param) const {
+   config->set_graph_inputs_shape_infos(param.graph_inputs_shape_infos);
+   config->set_dynamic_symbols(param.dynamic_symbols);
+   config->set_dynamic_symbols_num(param.dynamic_symbols_num);
++  config->set_dynamic_symbols_map(param.dynamic_symbols_map);
+   config->set_user_graph_inputs_template(param.graph_inputs_template);
+ 
+   auto print_parameter = [](auto name, auto value) {
+diff --git a/mindspore/lite/tools/converter/micro/coder/config.h b/mindspore/lite/tools/converter/micro/coder/config.h
+index fb90a2fc..3afea051 100644
+--- a/mindspore/lite/tools/converter/micro/coder/config.h
++++ b/mindspore/lite/tools/converter/micro/coder/config.h
+@@ -18,6 +18,8 @@
+ #define MINDSPORE_LITE_TOOLS_CONVERTER_MICRO_CODER_CONFIG_H_
+ 
+ #include <string>
++#include <map>
++#include <vector>
+ 
+ namespace mindspore::lite::micro {
+ enum Target { kX86 = 0, kCortex_M = 1, kARM32 = 2, kARM64 = 3, kAllTargets = 4, kTargetUnknown = 99 };
+@@ -38,6 +40,7 @@ struct MicroParam {
+   std::map<std::string, std::vector<std::string>> graph_inputs_origin_info;
+   std::vector<std::string> dynamic_symbols;
+   std::vector<size_t> dynamic_symbols_num;
++  std::map<std::string, std::vector<int>> dynamic_symbols_map;
+   std::vector<std::vector<std::vector<int>>> graph_inputs_shape_infos;
+   std::map<std::string, std::vector<std::vector<int>>> inputs_shape_by_scenes;
+ };
+@@ -84,6 +87,11 @@ class Configurator {
+   }
+   const std::vector<size_t> &dynamic_symbols_num() const { return dynamic_symbols_num_; }
+ 
++  void set_dynamic_symbols_map(const std::map<std::string, std::vector<int>> &dynamic_symbols_map) {
++    dynamic_symbols_map_ = dynamic_symbols_map;
++  }
++  const std::map<std::string, std::vector<int>> &dynamic_symbols_map() const { return dynamic_symbols_map_; }
++
+   void set_user_graph_inputs_template(const std::vector<std::vector<std::string>> &graph_inputs_template) {
+     user_graph_inputs_template_ = graph_inputs_template;
+   }
+@@ -110,6 +118,7 @@ class Configurator {
+   std::string changeable_weights_name_;
+   std::vector<std::string> dynamic_symbols_;
+   std::vector<size_t> dynamic_symbols_num_;
++  std::map<std::string, std::vector<int>> dynamic_symbols_map_;
+   std::vector<std::vector<std::vector<int>>> graph_inputs_shape_infos_;
+   std::vector<std::vector<std::string>> user_graph_inputs_template_;
+ };
+diff --git a/mindspore/lite/tools/converter/micro/coder/generator/component/common_component.cc b/mindspore/lite/tools/converter/micro/coder/generator/component/common_component.cc
+index 62c2f668..b9ab846e 100644
+--- a/mindspore/lite/tools/converter/micro/coder/generator/component/common_component.cc
++++ b/mindspore/lite/tools/converter/micro/coder/generator/component/common_component.cc
+@@ -492,6 +492,19 @@ void CodeMSModelResize(std::ofstream &ofs, const std::unique_ptr<CoderContext> &
+     for (auto &item : symbol_to_indexes) {
+       ofs << "  int dim" << index << " = shape_infos[" << item.second[0] << "].shape[" << item.second[1] << "];\n";
+       inner_to_outer[item.first] = "dim" + std::to_string(index);
++      std::string cur_dim_symbol;
++      for (std::map<std::string, std::string>::iterator it = user_to_inner.begin(); it != user_to_inner.end(); it++) {
++        if (it->second == item.first) {
++          cur_dim_symbol = it->first;
++          break;
++        }
++      }
++      auto dynamic_dim_range = config.dynamic_symbols_map().at(cur_dim_symbol);
++      ofs << "  int dim" << index << "_range[" << dynamic_dim_range.size() << "] = {";
++      for (const auto dim : dynamic_dim_range) {
++        ofs << dim << ", ";
++      }
++      ofs << "};\n";
+       ++index;
+     }
+     std::string condition;
+@@ -508,18 +521,40 @@ void CodeMSModelResize(std::ofstream &ofs, const std::unique_ptr<CoderContext> &
+     for (size_t i = 0; i < symbol_to_indexes.size(); ++i) {
+       ofs << "  store" + std::to_string(ctx->GetCurModelIndex()) + "_" << i << " = dim" << i << ";\n";
+     }
++    auto &dynamic_symbols = config.dynamic_symbols();
++    int id = 0;
++    for (auto &symbol : dynamic_symbols) {
++      auto cur_dim = inner_to_outer[user_to_inner[symbol]];
++      auto dim_list = cur_dim + "_range";
++      ofs << "  int index" << id << " = 0;\n";
++      ofs << "  for (int i = 0; i < sizeof(" << dim_list << ") / sizeof(" << dim_list << "[0]); i++) {\n"
++          << "    if (" << dim_list << "[i] == " << cur_dim << ") {\n"
++          << "      index" << id << " = i;\n"
++          << "      break;\n"
++          << "    }\n"
++          << "  }\n";
++      id++;
++    }
+     ofs << "  if (" << kBufferPrefixName << " != NULL) {\n";
+     ofs << "    free(" << kBufferPrefixName << ");\n";
++    ofs << "    " << kBufferPrefixName << " = NULL;\n";
+     ofs << "  }\n";
+-    std::string real_array_index;
+-    auto &dynamic_symbols = config.dynamic_symbols();
+-    for (auto &symbol : dynamic_symbols) {
+-      real_array_index += "[" + inner_to_outer[user_to_inner[symbol]] + " - 1]";
++    ofs << "  " << kBufferPrefixName << " = malloc(buffer_sizes";
++    for (size_t i = 0; i < dynamic_symbols.size(); i++) {
++      ofs << "[index" << i << "]";
+     }
+-    ofs << "  " << kBufferPrefixName << " = malloc(buffer_sizes" << real_array_index << ");\n";
++    ofs << ");\n";
+     ofs << "  micro_model->runtime_buffer = " << kBufferPrefixName << ";\n";
+-    ofs << "  " << kShapePrefixName << " = &shapes" << real_array_index << "[0];\n";
+-    ofs << "  " << kOffsetPrefixName << " = &offsets" << real_array_index << "[0];\n";
++    ofs << "  " << kShapePrefixName << " = &shapes";
++    for (size_t i = 0; i < dynamic_symbols.size(); i++) {
++      ofs << "[index" << i << "]";
++    }
++    ofs << "[0];\n";
++    ofs << "  " << kOffsetPrefixName << " = &offsets";
++    for (size_t i = 0; i < dynamic_symbols.size(); i++) {
++      ofs << "[index" << i << "]";
++    }
++    ofs << "[0];\n";
+     ofs << "  OH_AI_TensorHandleArray outputs = OH_AI_ModelGetOutputs(model);\n";
+     for (size_t i = 0; i < ctx->graph_outputs().size(); ++i) {
+       ofs << "  OH_AI_TensorSetData(outputs.handle_list[" << i << "], NULL);\n";
+diff --git a/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/calib_output.cc b/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/calib_output.cc
+index 66af9069..bd020d83 100644
+--- a/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/calib_output.cc
++++ b/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/calib_output.cc
+@@ -80,6 +80,9 @@ const char *calib_source = R"RAW(/**
+ #include <stdlib.h>
+ #include <math.h>
+ #include <string.h>
++#ifdef ENABLE_FP16
++#include <arm_neon.h>
++#endif
+ 
+ #define kToleranceVal 0.0001f
+ #define kMaxOutput 5
+@@ -196,6 +199,22 @@ int CompareOutputs(OH_AI_TensorHandleArray outputs, CalibTensor **calib_tensors,
+         }
+         break;
+       }
++#ifdef ENABLE_FP16
++      case OH_AI_DATATYPE_NUMBERTYPE_FLOAT16: {
++        float16_t *float16_output = (float16_t *)output->data;
++        for (size_t j = 0; j < elements; ++j) {
++          if (isnan(float16_output[j]) || isinf(float16_output[j]) || isnan(calib[i].data_[j]) ||
++              isinf(calib[i].data_[j])) {
++            printf("error, output data is nan or inf\n");
++            return OH_AI_STATUS_LITE_ERROR;
++          }
++          dot += float16_output[j] * calib[i].data_[j];
++          normx += float16_output[j] * float16_output[j];
++          normy += calib[i].data_[j] * calib[i].data_[j];
++        }
++        break;
++      }
++#endif
+       case OH_AI_DATATYPE_NUMBERTYPE_INT8: {
+         int8_t *int_output = (int8_t *)output->data;
+         for (size_t j = 0; j < elements; ++j) {
+diff --git a/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/mtensor.cc b/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/mtensor.cc
+index e4581829..8d8e6768 100644
+--- a/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/mtensor.cc
++++ b/mindspore/lite/tools/converter/micro/coder/generator/component/const_blocks/mtensor.cc
+@@ -315,12 +315,12 @@ void *TransformInput(OH_AI_TensorHandle tensor, int expect_type, bool *type_chan
+   if (type_trans_mode == TypeTransMode_UNSUPPORT) {
+     return NULL;
+   }
++#ifdef ENABLE_FP16
+   int shape_size = micro_tensor->ndim;
+   int num = 1;
+   for (int i = 0; i < shape_size; ++i) {
+     num *= micro_tensor->shape[i];
+   }
+-#ifdef ENABLE_FP16
+   if (type_trans_mode == TypeTransMode_FP32_TO_FP16) {
+     void *expect_input_fp16 = (void *)malloc(DataTypeSize(expect_type) * num);
+     Fp32CastToFp16((float *)micro_tensor->data, (float16_t *)expect_input_fp16, num);
+-- 
+2.25.1
+

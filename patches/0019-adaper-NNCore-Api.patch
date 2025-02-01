@@ -1,0 +1,736 @@
+From 3793994296c2ede3f79544d613acd8f6600ec9fb Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Fri, 7 Jun 2024 15:31:09 +0800
+Subject: fix lite_graph dequant crash
+
+---
+ .../delegate/nnrt/checker/primitive_check.cc  | 115 -----------
+ .../delegate/nnrt/checker/primitive_check.h   |   1 -
+ .../litert/delegate/nnrt/nnrt_allocator.cc    |  64 +++---
+ .../src/litert/delegate/nnrt/nnrt_allocator.h |  20 +-
+ .../src/litert/delegate/nnrt/nnrt_delegate.cc |  32 +--
+ .../src/litert/delegate/nnrt/nnrt_delegate.h  |   1 +
+ .../litert/delegate/nnrt/nnrt_model_kernel.cc | 190 ++++++++++--------
+ .../litert/delegate/nnrt/nnrt_model_kernel.h  |  17 +-
+ mindspore/lite/src/tensor.h                   |   2 +
+ 9 files changed, 186 insertions(+), 256 deletions(-)
+
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.cc b/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.cc
+index 6b191c8e..67d60f1b 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.cc
++++ b/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.cc
+@@ -7,121 +7,6 @@
+ #include "src/common/utils.h"
+ namespace mindspore {
+ namespace lite {
+-
+-Status CheckPrimitiveSupported(const schema::Primitive *primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = primitive;
+-    auto type = prim->value_type();
+-    switch (type) {
+-      case schema::PrimitiveType_Activation:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_AddFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_ArgMaxFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_AvgPoolFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_BatchToSpaceND:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_BiasAdd:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Cast:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Concat:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Conv2DFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Conv2dTransposeFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_DivFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Eltwise:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_ExpandDims:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Fill:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_FullConnection:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_FusedBatchNorm:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Gather:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_LayerNormFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_LessEqual:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_MatMulFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Maximum:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_MaxPoolFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_MulFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_OneHot:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_PadFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_PowFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_PReLUFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_QuantDTypeCast:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_ReduceFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Reshape:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Resize:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Rsqrt:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_ScaleFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Shape:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_SliceFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Softmax:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_SpaceToBatchND:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Split:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Sqrt:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_SquaredDifference:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Squeeze:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Stack:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_StridedSlice:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_SubFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_TileFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_TopKFusion:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Transpose:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Unsqueeze:
+-        return mindspore::kSuccess;
+-      case schema::PrimitiveType_Custom:
+-        return mindspore::kSuccess;
+-      default: {
+-        MS_LOG(WARNING) << "No primitive type :" << (int)(type);
+-        return mindspore::kLiteSuccessExit;
+-      }
+-    }
+-    return mindspore::kSuccess;
+-  } else {
+-    MS_LOG(ERROR) << "primitive is nullptr.";
+-    return mindspore::kLiteError;
+-  }
+-}
+ namespace {
+ bool NeedBitUppackCheck(const schema::Tensor &src_tensor) {
+   if (src_tensor.enableHuffmanCode()) {
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.h b/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.h
+index dbdd812c..46b812c0 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.h
++++ b/mindspore/lite/src/litert/delegate/nnrt/checker/primitive_check.h
+@@ -4,7 +4,6 @@
+ #include "include/api/status.h"
+ namespace mindspore {
+ namespace lite {
+-Status CheckPrimitiveSupported(const schema::Primitive *primitive);
+ Status CheckTensorSupported(const schema::Tensor *primitive);
+ }  // namespace lite
+ }  // namespace mindspore
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc
+index f79c1682..b38fff62 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc
+@@ -21,7 +21,6 @@
+ #include <mutex>
+ #include "src/litert/delegate/nnrt/nnrt_allocator.h"
+ #include "src/common/log.h"
+-#include "interfaces/kits/c/neural_network_runtime/neural_network_runtime.h"
+ 
+ namespace mindspore {
+ namespace lite {
+@@ -29,23 +28,17 @@ NNRTAllocator::~NNRTAllocator() {
+   std::lock_guard<std::mutex> locker(mutex_);
+   for (auto &it : allocated_list_) {
+     auto membuf = it.second;
+-    if (memory_category_ == NNRT_INPUT) {
+-      OH_NNExecutor_DestroyInputMemory(executor_, index_, &(membuf->memory_));
+-    } else {
+-      OH_NNExecutor_DestroyOutputMemory(executor_, index_, &(membuf->memory_));
+-    }
+-    free(membuf);
++    OH_NNTensor_Destroy(&membuf->tensor_);
++    OH_NNTensorDesc_Destroy(&membuf->tensor_desc_);
++    delete membuf;
+   }
+   allocated_list_.clear();
+ 
+   for (auto &it : free_list_) {
+     auto membuf = it.second;
+-    if (memory_category_ == NNRT_INPUT) {
+-      OH_NNExecutor_DestroyInputMemory(executor_, index_, &(membuf->memory_));
+-    } else {
+-      OH_NNExecutor_DestroyOutputMemory(executor_, index_, &(membuf->memory_));
+-    }
+-    free(membuf);
++    OH_NNTensor_Destroy(&membuf->tensor_);
++    OH_NNTensorDesc_Destroy(&membuf->tensor_desc_);
++    delete membuf;
+   }
+   free_list_.clear();
+ }
+@@ -57,8 +50,8 @@ void *NNRTAllocator::Malloc(size_t size) {
+     auto membuf = iter->second;
+     membuf->ref_count_ = 0;
+     (void)free_list_.erase(iter);
+-    allocated_list_[membuf->memory_->data] = membuf;
+-    return membuf->memory_->data;
++    allocated_list_[membuf->data] = membuf;
++    return membuf->data;
+   }
+ 
+   auto membuf = new (std::nothrow) MemBuf();
+@@ -66,30 +59,36 @@ void *NNRTAllocator::Malloc(size_t size) {
+     MS_LOG(ERROR) << "new Membuf failed.";
+     return nullptr;
+   }
+-
+   membuf->ref_count_ = 0;
+   if (memory_category_ == NNRT_INPUT) {
+-    membuf->memory_ = OH_NNExecutor_AllocateInputMemory(executor_, index_, size);
++    membuf->tensor_desc_ = OH_NNExecutor_CreateInputTensorDesc(executor_, index_);
+   } else {
+-    membuf->memory_ = OH_NNExecutor_AllocateOutputMemory(executor_, index_, size);
++    membuf->tensor_desc_ = OH_NNExecutor_CreateOutputTensorDesc(executor_, index_);
+   }
+-
+-  if (membuf->memory_ == nullptr) {
+-    MS_LOG(ERROR) << "malloc OH_NN_Memory return nullptr";
++  if (membuf->tensor_desc_ == nullptr) {
++    MS_LOG(ERROR) << "OH_NNExecutor_CreateInput/OutputTensorDesc failed, i = " << index_;
++    delete membuf;
++    return nullptr;
++  }
++  membuf->tensor_ = OH_NNTensor_CreateWithSize(device_id_, membuf->tensor_desc_, size);
++  if (membuf->tensor_ == nullptr) {
++    MS_LOG(ERROR) << "OH_NNTensor_CreateWithSize failed, i = " << index_;
++    OH_NNTensorDesc_Destroy(&membuf->tensor_desc_);
++    delete membuf;
+     return nullptr;
+   }
+-  if (membuf->memory_->data == nullptr) {
+-    MS_LOG(ERROR) << "malloc OH_NN_Memory return nullptr";
+-    if (memory_category_ == NNRT_INPUT) {
+-      OH_NNExecutor_DestroyInputMemory(executor_, index_, &(membuf->memory_));
+-    } else {
+-      OH_NNExecutor_DestroyOutputMemory(executor_, index_, &(membuf->memory_));
+-    }
++  membuf->data = OH_NNTensor_GetDataBuffer(membuf->tensor_);
++  if (membuf->data == nullptr) {
++    MS_LOG(ERROR) << "OH_NNTensor_GetDataBuffer failed, i = " << index_;
++    OH_NNTensor_Destroy(&membuf->tensor_);
++    OH_NNTensorDesc_Destroy(&membuf->tensor_desc_);
++    delete membuf;
+     return nullptr;
+   }
+ 
+-  allocated_list_[membuf->memory_->data] = membuf;
+-  return membuf->memory_->data;
++  membuf->size = size;
++  allocated_list_[membuf->data] = membuf;
++  return membuf->data;
+ }
+ 
+ void NNRTAllocator::Free(void *ptr) {
+@@ -105,12 +104,12 @@ void NNRTAllocator::Free(void *ptr) {
+   auto membuf = iter->second;
+   membuf->ref_count_ = 0;
+   (void)allocated_list_.erase(iter);
+-  (void)free_list_.insert(std::make_pair(membuf->memory_->length, membuf));
++  (void)free_list_.insert(std::make_pair(membuf->size, membuf));
+ }
+ 
+ int NNRTAllocator::RefCount(void *ptr) {
+   if (ptr == nullptr) {
+-    return -1;
++    return NNRT_ALLOCATION;
+   }
+   std::lock_guard<std::mutex> locker(mutex_);
+   auto iter = allocated_list_.find(ptr);
+@@ -163,6 +162,5 @@ int NNRTAllocator::IncRefCount(void *ptr, int ref_count) {
+   }
+   return -1;
+ }
+-
+ }  // namespace lite
+ }  // namespace mindspore
+\ No newline at end of file
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h
+index f6721369..52e6def7 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h
+@@ -23,6 +23,9 @@
+ #include <map>
+ #include <mutex>
+ #include "include/api/allocator.h"
++#include "src/tensor.h"
++#include "interfaces/kits/c/neural_network_runtime/neural_network_runtime.h"
++
+ struct OH_NN_Memory;
+ struct OH_NNExecutor;
+ 
+@@ -32,8 +35,8 @@ enum MemoryCategory { NNRT_INPUT, NNRT_OUTPUT };
+ 
+ class NNRTAllocator : public Allocator {
+  public:
+-  NNRTAllocator(OH_NNExecutor *executor, int index, MemoryCategory memory_category)
+-      : index_(index), memory_category_(memory_category), executor_(executor) {}
++  NNRTAllocator(OH_NNExecutor *executor, int index, size_t device_id, MemoryCategory memory_category)
++      : index_(index), device_id_(device_id), memory_category_(memory_category), executor_(executor) {}
+   ~NNRTAllocator() override;
+ 
+   void *Malloc(size_t size) override;
+@@ -42,14 +45,25 @@ class NNRTAllocator : public Allocator {
+   int SetRefCount(void *ptr, int ref_count) override;
+   int DecRefCount(void *ptr, int ref_count) override;
+   int IncRefCount(void *ptr, int ref_count) override;
++  NN_Tensor *GetNNTensor(void *ptr) {
++    auto iter = allocated_list_.find(ptr);
++    if (iter != allocated_list_.end()) {
++      return iter->second->tensor_;
++    }
++    return nullptr;
++  }
+ 
+  private:
+   struct MemBuf {
+     std::atomic_int ref_count_{0};
+-    OH_NN_Memory *memory_{nullptr};
++    NN_TensorDesc *tensor_desc_{nullptr};
++    NN_Tensor *tensor_{nullptr};
++    void *data{nullptr};
++    size_t size{0};
+   };
+ 
+   int index_{0};
++  size_t device_id_{0};
+   MemoryCategory memory_category_{NNRT_INPUT};
+   OH_NNExecutor *executor_{nullptr};
+   std::mutex mutex_;
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc
+index d8450141..a949c910 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc
+@@ -169,7 +169,7 @@ Status NNRTDelegate::CreateFullModelKernel(DelegateModel<schema::Primitive> *mod
+   }
+   OH_NNCompilation_Destroy(&nn_compilation);
+ 
+-  auto nnrt_model_kernel = new (std::nothrow)NNRTModelKernel(nn_executor, model->inputs(), model->outputs());
++  auto nnrt_model_kernel = new (std::nothrow)NNRTModelKernel(nn_executor, nnrt_device_info_.device_id_, model->inputs(), model->outputs());
+   if (nnrt_model_kernel == nullptr) {
+     OH_NNExecutor_Destroy(&nn_executor);
+     MS_LOG(ERROR) << "new NNRTModelKernel failed";
+@@ -581,7 +581,7 @@ Status NNRTDelegate::CreateNNRTSubgraphKernels(DelegateModel<schema::Primitive>
+       continue ;
+     }
+ 
+-    auto nnrt_model_kernel = new (std::nothrow)NNRTModelKernel(nn_executor, in_tensors, out_tensors);
++    auto nnrt_model_kernel = new (std::nothrow)NNRTModelKernel(nn_executor, nnrt_device_info_.device_id_, in_tensors, out_tensors);
+     if (nnrt_model_kernel == nullptr) {
+       MS_LOG(ERROR) << "new NNRTModelKernel failed";
+       return kLiteError;
+@@ -760,6 +760,15 @@ schema::Tensor *NNRTDelegate::TensorToSchemaTensor(Tensor *lite_tensor, schema::
+   memcpy(tensor_buf, buf, fbb.GetSize());
+   auto tensor = flatbuffers::GetRoot<schema::Tensor>(tensor_buf);
+   fbb.Clear();
++  if (tensor != nullptr) {
++    // use to free tensor_buf
++    auto iter = dequant_schema_tensors_buffer_map_.find(const_cast<schema::Tensor *>(tensor));
++    if (iter != dequant_schema_tensors_buffer_map_.end()) {
++      MS_LOG(ERROR) << "schema tensor is duplicated.";
++      return nullptr;
++    }
++    dequant_schema_tensors_buffer_map_[const_cast<schema::Tensor *>(tensor)] = tensor_buf;
++  }
+   return const_cast<schema::Tensor *>(tensor);
+ }
+ 
+@@ -813,14 +822,6 @@ Status NNRTDelegate::DequantLiteGraph(LiteGraph *lite_graph) {
+ }
+ 
+ void NNRTDelegate::ShallowCopyLiteGraph(const lite::LiteGraph &lite_graph) {
+-  Status ret;
+-  for (auto node : lite_graph.all_nodes_) {
+-    ret = lite::CheckPrimitiveSupported(static_cast<const schema::Primitive *>(node->primitive_));
+-    if (ret == kLiteError) {
+-      MS_LOG(ERROR) << " primitive supported check failed.";
+-      return;
+-    }
+-  }
+   std::vector<LiteGraph::Node *> node_list;
+   node_list.reserve(lite_graph.all_nodes_.size());
+   // copy node
+@@ -856,7 +857,7 @@ void NNRTDelegate::ShallowCopyLiteGraph(const lite::LiteGraph &lite_graph) {
+     subgraph_list.emplace_back(new_subgraph);
+   }
+   for (auto tensor : lite_graph.all_tensors_) {
+-    ret = lite::CheckTensorSupported(static_cast<const schema::Tensor *>(tensor));
++    Status ret = lite::CheckTensorSupported(static_cast<const schema::Tensor *>(tensor));
+     if (ret == kLiteError) {
+       MS_LOG(ERROR) << "tensor supported check failed.";
+       return;
+@@ -921,10 +922,13 @@ NNRTDelegate::~NNRTDelegate() {
+   if (lite_graph_ != nullptr) {
+     MS_LOG(ERROR) << "Delete NNRTDelegate.";
+   }
+-  for (auto iter : dequant_schema_tensors_) {
+-    delete iter.second;
+-    iter.second = nullptr;
++  for (auto iter : dequant_schema_tensors_buffer_map_) {
++    if (iter.second != nullptr) {
++      free(iter.second);
++      iter.second = nullptr;
++    }
+   }
++  dequant_schema_tensors_buffer_map_.clear();
+ }
+ }  // namespace lite
+ }  // namespace mindspore
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h
+index 778553ef..db2f0ee7 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h
+@@ -95,6 +95,7 @@ class NNRTDelegate : public Delegate {
+   std::vector<OH_NNExecutor *> nn_executor_list_;
+   std::vector<Tensor *> *dequant_src_tensors_;
+   std::map<uint32_t, schema::Tensor *> dequant_schema_tensors_;
++  std::map<schema::Tensor *, void *> dequant_schema_tensors_buffer_map_;
+   std::vector<schema::Tensor *> replaced_schema_tensors_;
+ };
+ }  // namespace lite
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc
+index f83632dd..2a66d133 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc
+@@ -19,7 +19,7 @@
+ #include "litert/cxx_api/tensor/tensor_impl.h"
+ int mindspore::NNRTModelKernel::Prepare() {
+   for (size_t i = 0; i < inputs_.size(); i++) {
+-    auto nnrt_allocator = std::make_shared<lite::NNRTAllocator>(oh_nn_executor, i, lite::NNRT_INPUT);
++    auto nnrt_allocator = std::make_shared<lite::NNRTAllocator>(oh_nn_executor, i, device_id_, lite::NNRT_INPUT);
+     if (nnrt_allocator == nullptr) {
+       MS_LOG(ERROR) << "Create NNRTAllocator failed";
+       return lite::RET_NULL_PTR;
+@@ -27,7 +27,7 @@ int mindspore::NNRTModelKernel::Prepare() {
+     inputs_[i].SetAllocator(nnrt_allocator);
+   }
+   for (size_t i = 0; i < outputs_.size(); i++) {
+-    auto nnrt_allocator = std::make_shared<lite::NNRTAllocator>(oh_nn_executor, i, lite::NNRT_OUTPUT);
++    auto nnrt_allocator = std::make_shared<lite::NNRTAllocator>(oh_nn_executor, i, device_id_, lite::NNRT_OUTPUT);
+     if (nnrt_allocator == nullptr) {
+       MS_LOG(ERROR) << "Create NNRTAllocator failed";
+       return lite::RET_NULL_PTR;
+@@ -39,25 +39,33 @@ int mindspore::NNRTModelKernel::Prepare() {
+ 
+ int mindspore::NNRTModelKernel::Execute() {
+   MS_CHECK_TRUE_RET(this->outputs().empty() != true, lite::RET_ERROR);
+-  zero_copy_ = this->outputs()[Index0].allocator() != nullptr;
++  zero_copy_ = IS_NNRT_ALLOCATOR(this->outputs()[Index0].allocator());
+ 
++  if (!zero_copy_) {
++    FreeNNTensor();
++  }
++  nn_input_tensors_.clear();
++  nn_output_tensors_.clear();
++  nn_input_tensor_descs_.clear();
++  nn_output_tensor_descs_.clear();
+ 
+-  lite::STATUS ret_val = PrepareInputs();
++  lite::STATUS ret_val = SetInputs();
+   if (ret_val != lite::RET_OK) {
+-    MS_LOG(ERROR) << "NNRTModelKernel PrepareInputs failed, STATUS is " << ret_val;
++    MS_LOG(ERROR) << "NNRTModelKernel SetInputs failed, STATUS is " << ret_val;
+     return ret_val;
+   }
+-  ret_val = TransferOutputs();
++  ret_val = SetOutputs();
+   if (ret_val != lite::RET_OK) {
+-    MS_LOG(ERROR) << "NNRTModelKernel TransferOutputs failed, STATUS is " << ret_val;
++    MS_LOG(ERROR) << "NNRTModelKernel SetOutputs failed, STATUS is " << ret_val;
+     return ret_val;
+   }
+   MS_LOG(INFO) << "Running NNRtModel Kernel...";
+   OH_NN_ReturnCode ret_code;
+-  ret_code = OH_NNExecutor_Run(this->oh_nn_executor);
++  ret_code = OH_NNExecutor_RunSync(oh_nn_executor, nn_input_tensors_.data(), nn_input_tensors_.size(),
++                                   nn_output_tensors_.data(), nn_output_tensors_.size());
+ 
+   if (ret_code != OH_NN_SUCCESS) {
+-    MS_LOG(ERROR) << "NNExecutor Run failed, OH_NN_ReturnCode = " << ret_code;
++    MS_LOG(ERROR) << "OH_NNExecutor_RunSync Run failed, OH_NN_ReturnCode = " << ret_code;
+     return lite::RET_ERROR;
+   }
+   MS_LOG(INFO) << "Run NNRtModel Kernel success.";
+@@ -120,97 +128,107 @@ OH_NN_DataType mindspore::NNRTModelKernel::ConvertDataType(mindspore::DataType d
+   }
+   return oh_data_type;
+ }
+-int mindspore::NNRTModelKernel::PrepareInputs() {
+-  auto input_tensors = this->inputs();
+-  for (size_t i = 0; i < input_tensors.size(); i++) {
+-    auto tensor = input_tensors[i];
+-    auto tensor_shape = tensor.Shape();
+-    auto tmp_quant_param = tensor.QuantParams();
+-    OH_NN_QuantParam *quant_param = nullptr;
+-    std::vector<uint32_t> bit_num;
+-    std::vector<double> scale;
+-    std::vector<int32_t> zero_point;
+-    if (!tmp_quant_param.empty()) {
+-      quant_param = (new (std::nothrow) OH_NN_QuantParam);
+-      if (quant_param == nullptr) {
+-        MS_LOG(ERROR) << "new OH_NN_QuantParam failed.";
+-        return lite::RET_NULL_PTR;
+-      }
+-      for (auto qparam : tmp_quant_param) {
+-        bit_num.emplace_back(qparam.bit_num);
+-        scale.emplace_back(qparam.scale);
+-        zero_point.emplace_back(qparam.zero_point);
+-      }
+-      quant_param->quantCount = tmp_quant_param.size();
+-      quant_param->numBits = bit_num.data();
+-      quant_param->scale = scale.data();
+-      quant_param->zeroPoint = zero_point.data();
++
++int mindspore::NNRTModelKernel::SetInputs() {
++  if (!zero_copy_) {
++    OH_NN_ReturnCode ret{OH_NN_FAILED};
++    size_t nn_input_count = 0;
++    ret = OH_NNExecutor_GetInputCount(oh_nn_executor, &nn_input_count);
++    if (ret != OH_NN_SUCCESS) {
++      MS_LOG(ERROR) << "OH_NNExecutor_GetInputCount failed.";
++      return lite::RET_ERROR;
+     }
+-    auto oprend = new (std::nothrow) OH_NN_Tensor;
+-    if (oprend == nullptr) {
+-      MS_LOG(ERROR) << "new OH_NN_Tensor Failed";
++    if (nn_input_count != inputs_.size()) {
++      MS_LOG(ERROR) << "input count is not equal between ms and nnrt.";
+       return lite::RET_ERROR;
+     }
+-    oprend->dataType = ConvertDataType(tensor.DataType());
+-    oprend->dimensionCount = tensor_shape.size();
+-
+-    std::vector<int32_t> dimensions_list;
+-    for (auto shape : tensor_shape) {
+-      if (shape < INT32_MAX) {
+-        dimensions_list.emplace_back(static_cast<int32_t>(shape));
+-      } else {
+-        MS_LOG(ERROR) << "NNExecutor SetInput failed,tensor dimension is is too large, max dim = " << INT32_MAX
+-                      << ", but get dimension = " << shape;
++    for (size_t i = 0; i < nn_input_count; i++) {
++      NN_TensorDesc *tensor_desc_tmp = OH_NNExecutor_CreateInputTensorDesc(oh_nn_executor, i);
++      if (tensor_desc_tmp == nullptr) {
++        MS_LOG(ERROR) << "OH_NNExecutor_CreateInputTensorDesc failed, i = " << i;
+         return lite::RET_ERROR;
+       }
++      nn_input_tensor_descs_.emplace_back(tensor_desc_tmp);
++      NN_Tensor *tensor_tmp = OH_NNTensor_Create(device_id_, tensor_desc_tmp);
++      if (tensor_tmp == nullptr) {
++        MS_LOG(ERROR) << "OH_NNTensor_Create input failed, i = " << i;
++        return lite::RET_ERROR;
++      }
++      nn_input_tensors_.emplace_back(tensor_tmp);
++      void *nn_data = OH_NNTensor_GetDataBuffer(nn_input_tensors_[i]);
++      size_t tensor_size;
++      ret = OH_NNTensorDesc_GetByteSize(tensor_desc_tmp, &tensor_size);
++      if (ret != OH_NN_SUCCESS || tensor_size != inputs_[i].DataSize()) {
++        MS_LOG(ERROR) << "NN_Tensor size is not equal to MSTensor, i = " << i;
++        return lite::RET_ERROR;
++      }
++      memcpy(nn_data, inputs_[i].MutableData(), inputs_[i].DataSize());
+     }
+-    oprend->dimensions = dimensions_list.data();
+-    oprend->quantParam = quant_param;
+-    oprend->type = OH_NN_TENSOR;
+-    MS_LOG_INFO << "input tensor: " << tensor.Name() << ", data: " << (void *)tensor.MutableData()
+-                << ", size: " << tensor.DataSize();
+-
+-    OH_NN_ReturnCode ret_code;
+-    if (zero_copy_) {
+-      OH_NN_Memory mem{tensor.MutableData(), tensor.DataSize()};
+-      ret_code = OH_NNExecutor_SetInputWithMemory(oh_nn_executor, i, oprend, &mem);
+-    } else {
+-      ret_code = OH_NNExecutor_SetInput(oh_nn_executor, i, oprend, tensor.MutableData(), tensor.DataSize());
+-    }
+-
+-    delete (oprend);
+-
+-    if (!tmp_quant_param.empty()) {
+-      free(quant_param);
+-      quant_param = nullptr;
+-    }
+-
+-    if (ret_code != OH_NN_SUCCESS) {
+-      MS_LOG(ERROR) << "NNExecutor SetInput failed, current input tensor is" << tensor.Name()
+-                    << "OH_NN_ReturnCode = " << ret_code;
+-      return lite::RET_ERROR;
++  } else {
++    for (size_t i = 0; i < inputs_.size(); i++) {
++      void *data = inputs_[i].MutableData();
++      NN_Tensor *tensor_tmp = reinterpret_cast<lite::NNRTAllocator *>(inputs_[i].allocator().get())->GetNNTensor(data);
++      if (tensor_tmp == nullptr) {
++        MS_LOG(ERROR) << "NNRTAllocator GetNNTensor failed, i = " << i;
++        return lite::RET_ERROR;
++      }
++      nn_input_tensors_.emplace_back(tensor_tmp);
+     }
+   }
+-
+   return lite::RET_OK;
+ }
+-int mindspore::NNRTModelKernel::TransferOutputs() {
+-  auto output_tensors = this->outputs();
+-  for (size_t i = 0; i < output_tensors.size(); i++) {
+-    auto tensor = output_tensors[i];
+ 
+-    OH_NN_ReturnCode ret_code;
+-    if (zero_copy_) {
+-      OH_NN_Memory mem{tensor.MutableData(), tensor.DataSize()};
+-      ret_code = OH_NNExecutor_SetOutputWithMemory(oh_nn_executor, i, &mem);
+-    } else {
+-      ret_code = OH_NNExecutor_SetOutput(oh_nn_executor, i, tensor.MutableData(), tensor.DataSize());
++int mindspore::NNRTModelKernel::SetOutputs() {
++  if (!zero_copy_) {
++    OH_NN_ReturnCode ret{OH_NN_FAILED};
++    size_t nn_output_count = 0;
++    ret = OH_NNExecutor_GetOutputCount(oh_nn_executor, &nn_output_count);
++    if (ret != OH_NN_SUCCESS) {
++      MS_LOG(ERROR) << "OH_NNExecutor_GetOutputCount failed.";
++      return lite::RET_ERROR;
+     }
+-    if (ret_code != OH_NN_SUCCESS) {
+-      MS_LOG(ERROR) << "NNExecutor SetOutput failed, current out tensor is" << tensor.Name()
+-                    << ", OH_NN_ReturnCode = " << ret_code;
++    if (nn_output_count != outputs_.size()) {
++      MS_LOG(ERROR) << "output count is not equal between ms and nnrt.";
+       return lite::RET_ERROR;
+     }
++    for (size_t i = 0; i < nn_output_count; i++) {
++      NN_TensorDesc *tensor_desc_tmp = OH_NNExecutor_CreateOutputTensorDesc(oh_nn_executor, i);
++      if (tensor_desc_tmp == nullptr) {
++        MS_LOG(ERROR) << "OH_NNExecutor_CreateOutputTensorDesc failed, i = " << i;
++        return lite::RET_ERROR;
++      }
++      nn_output_tensor_descs_.emplace_back(tensor_desc_tmp);
++      NN_Tensor *tensor_tmp = OH_NNTensor_Create(device_id_, tensor_desc_tmp);
++      if (tensor_tmp == nullptr) {
++        MS_LOG(ERROR) << "OH_NNTensor_Create output failed, i = " << i;
++        return lite::RET_ERROR;
++      }
++      nn_output_tensors_.emplace_back(tensor_tmp);
++      auto data = OH_NNTensor_GetDataBuffer(nn_output_tensors_[i]);
++      reinterpret_cast<LiteTensorImpl *>(outputs_[i].impl().get())->lite_tensor()->FreeData();
++      outputs_[i].SetData(data, false);
++    }
++  } else {
++    for (size_t i = 0; i < outputs_.size(); i++) {
++      void *data = outputs_[i].MutableData();
++      NN_Tensor *tensor_tmp = reinterpret_cast<lite::NNRTAllocator *>(outputs_[i].allocator().get())->GetNNTensor(data);
++      if (tensor_tmp == nullptr) {
++        MS_LOG(ERROR) << "NNRTAllocator GetNNTensor failed, i = " << i;
++        return lite::RET_ERROR;
++      }
++      nn_output_tensors_.emplace_back(tensor_tmp);
++    }
+   }
+   return lite::RET_OK;
+ }
++
++void mindspore::NNRTModelKernel::FreeNNTensor() {
++  for (size_t i = 0; i < nn_input_tensors_.size(); i++) {
++    OH_NNTensor_Destroy(&nn_input_tensors_[i]);
++    OH_NNTensorDesc_Destroy(&nn_input_tensor_descs_[i]);
++  }
++  for (size_t i = 0; i < nn_output_tensors_.size(); i++) {
++    OH_NNTensor_Destroy(&nn_output_tensors_[i]);
++    OH_NNTensorDesc_Destroy(&nn_output_tensor_descs_[i]);
++  }
++}
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h
+index 33df925c..40800a2a 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h
+@@ -31,9 +31,9 @@ class NNRTModelKernel : public kernel::Kernel {
+    * Because nnr can't run single op, but the whole model. So we decide to make the whole model into one kernel.
+    * */
+  public:
+-  NNRTModelKernel(OH_NNExecutor *oh_nn_executor, const std::vector<mindspore::MSTensor> &inputs,
++  NNRTModelKernel(OH_NNExecutor *oh_nn_executor, size_t device_id, const std::vector<mindspore::MSTensor> &inputs,
+                   const std::vector<mindspore::MSTensor> &outputs)
+-      : kernel::Kernel(inputs, outputs, nullptr, nullptr), oh_nn_executor(oh_nn_executor) {}
++      : kernel::Kernel(inputs, outputs, nullptr, nullptr), device_id_(device_id), oh_nn_executor(oh_nn_executor) {}
+   int Prepare() override;
+   int Execute() override;
+   int ReSize() override {
+@@ -41,14 +41,23 @@ class NNRTModelKernel : public kernel::Kernel {
+     return lite::RET_ERROR;
+   };
+   OH_NN_DataType ConvertDataType(mindspore::DataType data_type);
+-  int PrepareInputs();
+-  int TransferOutputs();
++  int SetInputs();
++  int SetOutputs();
++  void FreeNNTensor();
+   ~NNRTModelKernel() override {
++    if (!zero_copy_) {
++      FreeNNTensor();
++    }
+     MS_LOG(INFO) << "NNRTModelKernel Destroy.";
+   }
+ 
+  protected:
++  size_t device_id_;
+   OH_NNExecutor *oh_nn_executor = nullptr;
++  std::vector<NN_Tensor *> nn_input_tensors_;
++  std::vector<NN_TensorDesc *> nn_input_tensor_descs_;
++  std::vector<NN_Tensor *> nn_output_tensors_;
++  std::vector<NN_TensorDesc *> nn_output_tensor_descs_;
+ 
+  private:
+   bool zero_copy_{false};
+diff --git a/mindspore/lite/src/tensor.h b/mindspore/lite/src/tensor.h
+index f2eb4d1a..501e28e5 100644
+--- a/mindspore/lite/src/tensor.h
++++ b/mindspore/lite/src/tensor.h
+@@ -38,10 +38,12 @@ namespace lite {
+ #define STATIC_ALLOCATION -271964
+ #define RUNTIME_REFCOUNT 0x9999
+ #define OPENCL_ALLOCATOR_REFCOUNT -10000
++#define NNRT_ALLOCATION -10001
+ #define IS_STATIC_ALLOCATOR(allocator) ((allocator != nullptr) && (allocator->RefCount(nullptr) == STATIC_ALLOCATION))
+ #define IS_RUNTIME_ALLOCATOR(allocator) ((allocator != nullptr) && (allocator->RefCount(nullptr) == RUNTIME_REFCOUNT))
+ #define IS_OPENCL_ALLOCATOR(allocator) \
+   ((allocator != nullptr) && (allocator->RefCount(nullptr) == OPENCL_ALLOCATOR_REFCOUNT))
++#define IS_NNRT_ALLOCATOR(allocator) ((allocator != nullptr) && (allocator->RefCount(nullptr) == NNRT_ALLOCATION))
+ 
+ struct LiteQuantParam {
+   double scale;
+-- 
+2.17.1
+

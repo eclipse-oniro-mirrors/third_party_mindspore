@@ -1,0 +1,261 @@
+From 043e4263bf4bcc6dd31a257da8f2a5f547ad72cd Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Tue, 30 Jul 2024 17:14:13 +0800
+Subject: [PATCH] fix matmul assemble
+
+---
+ .../nnacl/assembly/arm64/BigMatmulFp32Opt.S   | 22 +++++++++----------
+ .../kernel/nnacl/assembly/arm64/MatmulFp32.S  | 14 ++++++------
+ .../nnacl/assembly/arm64/MatmulFp32Opt.S      | 14 ++++++------
+ .../nnacl/assembly/arm64/MatmulFp32OptRow12.S | 14 ++++++------
+ .../nnacl/assembly/arm64/MatmulFp32OptRow4.S  | 16 +++++++-------
+ .../nnacl/assembly/arm64/MatmulFp32OptRow8.S  | 14 ++++++------
+ .../nnacl/assembly/arm64/MatmulWinogradFp32.S |  7 +++---
+ 7 files changed, 50 insertions(+), 51 deletions(-)
+
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/BigMatmulFp32Opt.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/BigMatmulFp32Opt.S
+index 498038ff..03898585 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/BigMatmulFp32Opt.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/BigMatmulFp32Opt.S
+@@ -33,16 +33,17 @@
+ 
+ asm_function BigMatmulFloatNeon64Opt
+     sub sp, sp, #224
+-    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+-    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+-    stp x19, x20, [sp], #16
+-    stp x21, x22, [sp], #16
+-    stp x23, x24, [sp], #16
+-    stp x25, x26, [sp], #16
+-    stp x27, x28, [sp], #16
+-    stp x29, x30, [sp], #16
+-
+-    ldr x8, [sp]
++    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp]
++    add x9, sp, #64
++    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [x9]
++    stp x19, x20, [sp, #128]
++    stp x21, x22, [sp, #144]
++    stp x23, x24, [sp, #160]
++    stp x25, x26, [sp, #176]
++    stp x27, x28, [sp, #192]
++    stp x29, x30, [sp, #208]
++
++    ldr x8, [sp, #224]
+     mov x20, #1
+     mov x22, #32
+     mov x23, #48
+@@ -2515,7 +2516,6 @@ Compute4x4Unit:
+         ret
+ 
+ End:
+-  sub sp, sp, #224
+   ld1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+   ld1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+   ldp x19, x20, [sp], #16
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32.S
+index 67d20dcc..2dedccd0 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32.S
+@@ -34,17 +34,18 @@
+ 
+ asm_function MatmulFloatNeon64
+   sub sp, sp, #144
+-  st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+-  st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+-  stp x19, x20, [sp], #16
++  st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp]
++  add x9, sp, #64
++  st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [x9]
++  stp x19, x20, [sp, #128]
+ 
+-  ldr x9, [sp, #8]
+-  ldr x14, [sp, #16]
++  ldr x9, [sp, #152]
++  ldr x14, [sp, #160]
+ 
+   mov w19, #32 // sizeof(float) * 8
+   mul w15, w5, w19 // block stride of lhs/rhs: sizeof(float) * 8 * depth
+   mov x19, #4
+-  ldr x17, [sp]
++  ldr x17, [sp, #144]
+   cbz x14, NoWinoSteps
+   mul x8, x7, x17
+   mov x11, #8
+@@ -779,7 +780,6 @@ NoDstStep:
+   bgt L1
+ 
+ End1:
+-  sub sp, sp, #144
+   ld1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+   ld1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+   ldp x19, x20, [sp], #16
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32Opt.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32Opt.S
+index 6937f4ba..6e2d8846 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32Opt.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32Opt.S
+@@ -34,13 +34,14 @@
+ 
+ asm_function MatmulFloatNeon64Opt
+     sub sp, sp, #160
+-    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+-    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+-    stp x19, x20, [sp], #16
+-    stp x21, x22, [sp], #16
++    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp]
++    add x9, sp, #64
++    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [x9]
++    stp x19, x20, [sp, #128]
++    stp x21, x22, [sp, #144]
+ 
+-    ldr x8, [sp]
+-    ldr x9, [sp, #8]
++    ldr x8, [sp, #160]
++    ldr x9, [sp, #168]
+ 
+     mov x21, #48 // sizeof(float) * 12
+     mul x17, x5, x21 // block stride of lhs/rhs: sizeof(float) * 12 * depth
+@@ -1659,7 +1660,6 @@ LoopColEnd:
+         subs x6, x6, #12
+         bgt LoopRowStart
+ 
+-  sub sp, sp, #160
+   ld1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+   ld1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+   ldp x19, x20, [sp], #16
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow12.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow12.S
+index c9151a99..05465bd1 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow12.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow12.S
+@@ -34,13 +34,14 @@
+ 
+ asm_function MatmulFloatNeon64OptRow12
+     sub sp, sp, #160
+-    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+-    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+-    stp x19, x20, [sp], #16
+-    stp x21, x22, [sp], #16
++    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp]
++    add x9, sp, #64
++    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [x9]
++    stp x19, x20, [sp, #128]
++    stp x21, x22, [sp, #144]
+ 
+-    ldr x8, [sp]
+-    ldr x9, [sp, #8]
++    ldr x8, [sp, #160]
++    ldr x9, [sp, #168]
+ 
+     mov x21, #48 // sizeof(float) * 12
+     mul x17, x5, x21 // block stride of lhs/rhs: sizeof(float) * 12 * depth
+@@ -1220,7 +1221,6 @@ LoopColEnd:
+         subs x6, x6, #12
+         bgt LoopRow
+ 
+-  sub sp, sp, #160
+   ld1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+   ld1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+   ldp x19, x20, [sp], #16
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow4.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow4.S
+index 0cc49fb9..b984c494 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow4.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow4.S
+@@ -19,7 +19,7 @@
+ .text
+ .align 5
+ 
+-// void MatmulFloatNeon64(const float *a, const float *b, float *c, const float *bias, int act_type, int depth
++// void MatmulFloatNeon64OptRow4(const float *a, const float *b, float *c, const float *bias, int act_type, int depth
+ //                        int row, int col, size_t stride, size_t writeMode)
+ // x0: a
+ // x1: b
+@@ -34,13 +34,14 @@
+ 
+ asm_function MatmulFloatNeon64OptRow4
+     sub sp, sp, #160
+-    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+-    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+-    stp x19, x20, [sp], #16
+-    stp x21, x22, [sp], #16
++    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp]
++    add x9, sp, #64
++    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [x9]
++    stp x19, x20, [sp, #128]
++    stp x21, x22, [sp, #144]
+ 
+-    ldr x8, [sp]
+-    ldr x9, [sp, #8]
++    ldr x8, [sp, #160]
++    ldr x9, [sp, #168]
+ 
+     mov x21, #48 // sizeof(float) * 12
+ 
+@@ -588,7 +589,6 @@ LoopColEnd:
+         subs x6, x6, #12
+         bgt LoopRow4
+ 
+-  sub sp, sp, #160
+   ld1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+   ld1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+   ldp x19, x20, [sp], #16
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow8.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow8.S
+index a9e42a54..c5b260c0 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow8.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulFp32OptRow8.S
+@@ -34,13 +34,14 @@
+ 
+ asm_function MatmulFloatNeon64OptRow8
+     sub sp, sp, #160
+-    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+-    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+-    stp x19, x20, [sp], #16
+-    stp x21, x22, [sp], #16
++    st1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp]
++    add x9, sp, #64
++    st1 {v12.4s, v13.4s, v14.4s, v15.4s}, [x9]
++    stp x19, x20, [sp, #128]
++    stp x21, x22, [sp, #144]
+ 
+-    ldr x8, [sp]
+-    ldr x9, [sp, #8]
++    ldr x8, [sp, #160]
++    ldr x9, [sp, #168]
+ 
+     mov x21, #48 // sizeof(float) * 12
+     mul x17, x5, x21 // block stride of lhs/rhs: sizeof(float) * 12 * depth
+@@ -902,7 +903,6 @@ LoopColEnd:
+         subs x6, x6, #12
+         bgt LoopCol8
+ 
+-  sub sp, sp, #160
+   ld1 {v8.4s, v9.4s, v10.4s, v11.4s}, [sp], #64
+   ld1 {v12.4s, v13.4s, v14.4s, v15.4s}, [sp], #64
+   ldp x19, x20, [sp], #16
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulWinogradFp32.S b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulWinogradFp32.S
+index 0b814ce4..23032ab9 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulWinogradFp32.S
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/assembly/arm64/MatmulWinogradFp32.S
+@@ -27,9 +27,9 @@ asm_function MatrixMultiplyWinograd
+     // x19 ~ x29 should be also preserved
+     // whereas our coding style do not permit such amount of parameters
+     sub sp, sp, #48
+-    st1 {v8.4s}, [sp], #16
+-    stp x19, x20, [sp], #16
+-    stp x21, x22, [sp], #16
++    st1 {v8.4s}, [sp]
++    stp x19, x20, [sp, #16]
++    stp x21, x22, [sp, #32]
+     mov x8, #4
+     mul x10, x5, x8
+     mov x17, x3  // m
+@@ -176,7 +176,6 @@ asm_function MatrixMultiplyWinograd
+             add x0, x0, x21
+             b LoopM
+     EndLoopM:
+-        sub sp, sp, #48
+         ld1 {v8.4s}, [sp], #16
+         ldp x19, x20, [sp], #16
+         ldp x21, x22, [sp], #16
+-- 
+2.17.1
+
