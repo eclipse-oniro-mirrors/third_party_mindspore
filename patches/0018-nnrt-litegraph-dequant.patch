@@ -1,0 +1,774 @@
+From aa38d5a95960e60f6a90a1ffa2958a6ebcee2b4e Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Thu, 18 Apr 2024 09:39:33 +0800
+Subject: [PATCH] nnrt litegraph dequant
+
+---
+ mindspore/lite/mindir/include/mindir_tensor.h |   6 +-
+ mindspore/lite/mindir/include/mindir_types.h  |  28 ++-
+ mindspore/lite/mindir/inner_headers/utils.h   |   2 +-
+ mindspore/lite/mindir/src/mindir.cc           |  93 ++++++++++
+ mindspore/lite/mindir/src/mindir_tensor.cc    |  14 +-
+ mindspore/lite/mindir/src/utils.cc            |  27 +--
+ .../src/litert/delegate/nnrt/nnrt_delegate.cc | 166 ++++++++++++------
+ .../src/litert/delegate/nnrt/nnrt_delegate.h  |  12 +-
+ mindspore/lite/src/litert/scheduler.cc        |   1 +
+ 9 files changed, 270 insertions(+), 79 deletions(-)
+
+diff --git a/mindspore/lite/mindir/include/mindir_tensor.h b/mindspore/lite/mindir/include/mindir_tensor.h
+index c1ac89bf..43c1478c 100644
+--- a/mindspore/lite/mindir/include/mindir_tensor.h
++++ b/mindspore/lite/mindir/include/mindir_tensor.h
+@@ -8,9 +8,9 @@ namespace lite {
+ 
+ // ********** Tensor **********
+ TensorPtr MindIR_Tensor_Create();
+-TensorPtr MindIR_Tensor_Create(const std::string &name, DataType data_type, const std::vector<int32_t> &dims,
+-                               Format format, const std::vector<uint8_t> &data,
+-                               const std::vector<QuantParam> &quant_params);
++TensorPtr MindIR_Tensor_Create(const char *name, DataType data_type, const int32_t *dims, uint32_t dims_size,
++                               Format format, const uint8_t *data, uint32_t data_size,
++                               const QuantParam *quant_params, uint32_t quant_params_size);
+ std::string MindIR_Tensor_GetName(ConstTensorPtr tensor);
+ void MindIR_Tensor_SetName(TensorPtr *tensor, const std::string &name);
+ DataType MindIR_Tensor_GetDataType(ConstTensorPtr tensor);
+diff --git a/mindspore/lite/mindir/include/mindir_types.h b/mindspore/lite/mindir/include/mindir_types.h
+index 5744441a..196995fa 100644
+--- a/mindspore/lite/mindir/include/mindir_types.h
++++ b/mindspore/lite/mindir/include/mindir_types.h
+@@ -44,11 +44,35 @@ enum DataType : int8_t {
+ enum Format : int8_t {
+   FORMAT_NCHW = 0,
+   FORMAT_NHWC = 1,
++  FORMAT_NHWC4 = 2,
++  FORMAT_HWKC = 3,
++  FORMAT_HWCK = 4,
++  FORMAT_KCHW = 5,
++  FORMAT_CKHW = 6,
++  FORMAT_KHWC = 7,
++  FORMAT_CHWK = 8,
++  FORMAT_HW = 9,
++  FORMAT_HW4 = 10,
++  FORMAT_NC = 11,
++  FORMAT_NC4 = 12,
++  FORMAT_NC4HW4 = 13,
++  FORMAT_NUM_OF_FORMAT = 14,
++  FORMAT_NCDHW = 15,
++  FORMAT_NWC = 16,
++  FORMAT_NCW = 17,
++  FORMAT_NC8HW8 = 18,
++  FORMAT_MIN = FORMAT_NCHW,
++  FORMAT_MAX = FORMAT_NC8HW8
+ };
+ 
+ enum QuantType : int8_t {
+-  QUANT_TYPE_NONE,
+-  QUANT_TYPE_ALL,
++  QUANT_TYPE_NONE = 0,
++  QUANT_TYPE_AWARETRAINING = 1,
++  QUANT_TYPE_WEIGHTQUANT = 2,
++  QUANT_TYPE_POSTTRAINING = 3,
++  QUANT_TYPE_WEIGHT = 4,
++  QUANT_TYPE_ALL = 5,
++  QUANT_TYPE_DYNAMIC = 6
+ };
+ 
+ enum NodeType : uint32_t {
+diff --git a/mindspore/lite/mindir/inner_headers/utils.h b/mindspore/lite/mindir/inner_headers/utils.h
+index 0e6eb35d..0d150f80 100644
+--- a/mindspore/lite/mindir/inner_headers/utils.h
++++ b/mindspore/lite/mindir/inner_headers/utils.h
+@@ -17,7 +17,7 @@ flatbuffers::Offset<schema::Vec2D> CreateVec2D(flatbuffers::FlatBufferBuilder &f
+ mindspore::schema::PrimitiveType MindIR_GetPrimitiveType(PrimitivePtr prim);
+ 
+ flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<schema::QuantParam>>> ConvertQuantParams(
+-  flatbuffers::FlatBufferBuilder &fbb, const std::vector<QuantParam> &quant_params);
++  flatbuffers::FlatBufferBuilder &fbb, const QuantParam *quant_params, uint32_t quant_params_size);
+ 
+ flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<schema::QuantParam>>> ConvertQuantParams(
+   flatbuffers::FlatBufferBuilder &fbb,
+diff --git a/mindspore/lite/mindir/src/mindir.cc b/mindspore/lite/mindir/src/mindir.cc
+index 7041498a..a1f86671 100644
+--- a/mindspore/lite/mindir/src/mindir.cc
++++ b/mindspore/lite/mindir/src/mindir.cc
+@@ -398,6 +398,9 @@ std::vector<int64_t> MindIR_AvgPoolFusion_GetKernelSize(ConstPrimitivePtr primit
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->kernel_size();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -437,6 +440,9 @@ std::vector<int64_t> MindIR_AvgPoolFusion_GetStrides(ConstPrimitivePtr primitive
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->strides();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -476,6 +482,9 @@ std::vector<int64_t> MindIR_AvgPoolFusion_GetPad(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->pad();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -712,6 +721,9 @@ std::vector<int64_t> MindIR_BatchToSpaceND_GetBlockShape(ConstPrimitivePtr primi
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->block_shape();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -747,6 +759,9 @@ std::vector<std::vector<int64_t>> MindIR_BatchToSpaceND_GetCrops(ConstPrimitiveP
+     if (prim != nullptr && value != nullptr) {
+       std::vector<std::vector<int64_t>> out;
+       auto src = value->crops();
++      if (src == nullptr) {
++        return {};
++      }
+       for (auto sub_list : *src->data()) {
+         std::vector<int64_t> result_tmp;
+         result_tmp.resize(sub_list->data()->size());
+@@ -871,6 +886,9 @@ std::vector<int64_t> MindIR_Conv2DFusion_GetKernelSize(ConstPrimitivePtr primiti
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->kernel_size();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -911,6 +929,9 @@ std::vector<int64_t> MindIR_Conv2DFusion_GetStride(ConstPrimitivePtr primitive)
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->stride();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -952,6 +973,9 @@ std::vector<int64_t> MindIR_Conv2DFusion_GetDilation(ConstPrimitivePtr primitive
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->dilation();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -1030,6 +1054,9 @@ std::vector<int64_t> MindIR_Conv2DFusion_GetPadList(ConstPrimitivePtr primitive)
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->pad_list();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -1281,6 +1308,9 @@ std::vector<int64_t> MindIR_Conv2dTransposeFusion_GetKernelSize(ConstPrimitivePt
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->kernel_size();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -1322,6 +1352,9 @@ std::vector<int64_t> MindIR_Conv2dTransposeFusion_GetStride(ConstPrimitivePtr pr
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->stride();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -1364,6 +1397,9 @@ std::vector<int64_t> MindIR_Conv2dTransposeFusion_GetDilation(ConstPrimitivePtr
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->dilation();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -1444,6 +1480,9 @@ std::vector<int64_t> MindIR_Conv2dTransposeFusion_GetPadList(ConstPrimitivePtr p
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->pad_list();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -1640,6 +1679,9 @@ std::vector<int64_t> MindIR_Conv2dTransposeFusion_GetOutputPaddings(ConstPrimiti
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->output_paddings();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -2273,6 +2315,9 @@ std::vector<int64_t> MindIR_MaxPoolFusion_GetKernelSize(ConstPrimitivePtr primit
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->kernel_size();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -2312,6 +2357,9 @@ std::vector<int64_t> MindIR_MaxPoolFusion_GetStrides(ConstPrimitivePtr primitive
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->strides();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -2351,6 +2399,9 @@ std::vector<int64_t> MindIR_MaxPoolFusion_GetPad(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->pad();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -2680,6 +2731,9 @@ std::vector<std::vector<int64_t>> MindIR_PadFusion_GetPaddings(ConstPrimitivePtr
+     if (prim != nullptr && value != nullptr) {
+       std::vector<std::vector<int64_t>> out;
+       auto src = value->paddings();
++      if (src == nullptr) {
++        return {};
++      }
+       for (auto sub_list : *src->data()) {
+         std::vector<int64_t> result_tmp;
+         result_tmp.resize(sub_list->data()->size());
+@@ -3601,6 +3655,9 @@ std::vector<int64_t> MindIR_SliceFusion_GetAxes(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->axes();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -3646,6 +3703,9 @@ std::vector<int64_t> MindIR_Softmax_GetAxis(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->axis();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -3694,6 +3754,9 @@ std::vector<int64_t> MindIR_SpaceToBatchND_GetBlockShape(ConstPrimitivePtr primi
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->block_shape();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -3729,6 +3792,9 @@ std::vector<std::vector<int64_t>> MindIR_SpaceToBatchND_GetPaddings(ConstPrimiti
+     if (prim != nullptr && value != nullptr) {
+       std::vector<std::vector<int64_t>> out;
+       auto src = value->paddings();
++      if (src == nullptr) {
++        return {};
++      }
+       for (auto sub_list : *src->data()) {
+         std::vector<int64_t> result_tmp;
+         result_tmp.resize(sub_list->data()->size());
+@@ -3812,6 +3878,9 @@ std::vector<int64_t> MindIR_Split_GetSizeSplits(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->size_splits();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -3912,6 +3981,9 @@ std::vector<int64_t> MindIR_Squeeze_GetAxis(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->axis();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -4212,6 +4284,9 @@ std::vector<int64_t> MindIR_TileFusion_GetDims(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->dims();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -4342,6 +4417,9 @@ std::vector<int64_t> MindIR_Unsqueeze_GetAxis(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->axis();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -4399,6 +4477,9 @@ std::vector<int64_t> MindIR_BroadcastTo_GetShape(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->shape();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -4477,6 +4558,9 @@ std::vector<float> MindIR_ConstantOfShape_GetValue(ConstPrimitivePtr primitive)
+     if (prim != nullptr && value_ != nullptr) {
+       std::vector<float> result;
+       auto src = value_->value();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](float item) { return item; });
+       return result;
+@@ -5889,6 +5973,9 @@ std::vector<int64_t> MindIR_L2NormalizeFusion_GetAxis(ConstPrimitivePtr primitiv
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->axis();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -6238,6 +6325,9 @@ std::vector<int64_t> MindIR_Crop_GetOffsets(ConstPrimitivePtr primitive) {
+     if (prim != nullptr && value != nullptr) {
+       std::vector<int64_t> result;
+       auto src = value->offsets();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
+       return result;
+@@ -6348,6 +6438,9 @@ std::vector<float> MindIR_DetectionPostProcess_GetScale(ConstPrimitivePtr primit
+     if (prim != nullptr && value != nullptr) {
+       std::vector<float> result;
+       auto src = value->scale();
++      if (src == nullptr) {
++        return {};
++      }
+       result.resize(src->size());
+       std::transform(src->begin(), src->end(), result.begin(), [](float item) { return item; });
+       return result;
+diff --git a/mindspore/lite/mindir/src/mindir_tensor.cc b/mindspore/lite/mindir/src/mindir_tensor.cc
+index 9575f8c2..8888e2c9 100644
+--- a/mindspore/lite/mindir/src/mindir_tensor.cc
++++ b/mindspore/lite/mindir/src/mindir_tensor.cc
+@@ -36,15 +36,15 @@ TensorPtr MindIR_Tensor_Create() {
+   return ret_value;
+ }
+ 
+-TensorPtr MindIR_Tensor_Create(const std::string &name, DataType data_type, const std::vector<int32_t> &dims,
+-                               Format format, const std::vector<uint8_t> &data,
+-                               const std::vector<QuantParam> &quant_params) {
++TensorPtr MindIR_Tensor_Create(const char *name, DataType data_type, const int32_t *dims, uint32_t dims_size,
++                               Format format, const uint8_t *data, uint32_t data_size,
++                               const QuantParam *quant_params, uint32_t quant_params_size) {
+   flatbuffers::FlatBufferBuilder fbb;
+ 
+   auto ops_offset =
+-    schema::CreateTensor(fbb, 0, data_type, fbb.CreateVector(dims.data(), dims.size()),
+-                         static_cast<schema::Format>(format), 0, 0, fbb.CreateVector(data.data(), data.size()),
+-                         ConvertQuantParams(fbb, quant_params), 0, fbb.CreateString(name.c_str(), name.size()));
++    schema::CreateTensor(fbb, 0, data_type, fbb.CreateVector(dims, dims_size),
++                         static_cast<schema::Format>(format), 0, 0, fbb.CreateVector(data, data_size),
++                         ConvertQuantParams(fbb, quant_params, quant_params_size), 0, fbb.CreateString(name, strlen(name)));
+   fbb.Finish(ops_offset);
+   auto new_addr = MindIRMemoryManager::GetInstance()->CreateTensorFromBuilder(fbb, nullptr);
+   auto ret_value = flatbuffers::GetMutableRoot<schema::Tensor>(new_addr);
+@@ -332,7 +332,7 @@ void MindIR_Tensor_SetQuantParams(TensorPtr *tensor, const std::vector<QuantPara
+       }
+       auto ops_offset =
+         schema::CreateTensor(fbb, 0, value->dataType(), dims, static_cast<schema::Format>(value->format()), 0, 0, data,
+-                             ConvertQuantParams(fbb, quant_params), 0, name);
++                             ConvertQuantParams(fbb, quant_params.data(), quant_params.size()), 0, name);
+       fbb.Finish(ops_offset);
+       auto new_addr = MindIRMemoryManager::GetInstance()->CreateTensorFromBuilder(fbb, value);
+       auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
+diff --git a/mindspore/lite/mindir/src/utils.cc b/mindspore/lite/mindir/src/utils.cc
+index b044f414..870802a9 100644
+--- a/mindspore/lite/mindir/src/utils.cc
++++ b/mindspore/lite/mindir/src/utils.cc
+@@ -63,21 +63,24 @@ flatbuffers::Offset<schema::Vec2D> CreateVec2D(flatbuffers::FlatBufferBuilder &f
+ }
+ flatbuffers::Offset<schema::Vec2D> CreateVec2D(flatbuffers::FlatBufferBuilder &fbb,
+                                                const mindspore::schema::Vec2D *data) {
+-  auto data_inner = data->data();
+   std::vector<flatbuffers::Offset<schema::Vec>> vet2d;
+-  vet2d.reserve(data_inner->size());
+-  for (const auto data_one : *data_inner) {
+-    vet2d.emplace_back(schema::CreateVec(fbb, fbb.CreateVector(data_one->data()->data(), data_one->data()->size())));
++  if (data != nullptr) {
++    auto data_inner = data->data();
++    vet2d.reserve(data_inner->size());
++    for (const auto data_one : *data_inner) {
++      vet2d.emplace_back(schema::CreateVec(fbb, fbb.CreateVector(data_one->data()->data(), data_one->data()->size())));
++    }
+   }
+   flatbuffers::Offset<schema::Vec2D> v2d = schema::CreateVec2D(fbb, fbb.CreateVector(vet2d));
+   return v2d;
+ }
+ 
+ flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<schema::QuantParam>>> ConvertQuantParams(
+-  flatbuffers::FlatBufferBuilder &fbb, const std::vector<QuantParam> &quant_params) {
++  flatbuffers::FlatBufferBuilder &fbb, const QuantParam *quant_params, uint32_t quant_params_size) {
+   std::vector<flatbuffers::Offset<mindspore::schema::QuantParam>> tmp_vec;
+-  tmp_vec.reserve(quant_params.size());
+-  for (auto q_param : quant_params) {
++  tmp_vec.reserve(quant_params_size);
++  for (uint32_t i = 0; i < quant_params_size; i++) {
++  QuantParam q_param = quant_params[i];
+     tmp_vec.emplace_back(schema::CreateQuantParam(fbb, q_param.scale, q_param.zeroPoint, 0, 0, true, q_param.numBits));
+   }
+   flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<schema::QuantParam>>> ret_quant_param =
+@@ -89,10 +92,12 @@ flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<schema::QuantParam>>
+   flatbuffers::FlatBufferBuilder &fbb,
+   const flatbuffers::Vector<flatbuffers::Offset<mindspore::schema::QuantParam>> *quant_params) {
+   std::vector<flatbuffers::Offset<mindspore::schema::QuantParam>> tmp_vec;
+-  tmp_vec.reserve(quant_params->size());
+-  for (auto q_param : *quant_params) {
+-    tmp_vec.emplace_back(
+-      schema::CreateQuantParam(fbb, q_param->scale(), q_param->zeroPoint(), 0, 0, true, q_param->numBits()));
++  if (quant_params != nullptr && quant_params->size() != 0) {
++    tmp_vec.reserve(quant_params->size());
++    for (auto q_param : *quant_params) {
++      tmp_vec.emplace_back(
++        schema::CreateQuantParam(fbb, q_param->scale(), q_param->zeroPoint(), 0, 0, true, q_param->numBits()));
++    }
+   }
+   flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<schema::QuantParam>>> ret_quant_param =
+     fbb.CreateVector(tmp_vec.data(), tmp_vec.size());
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc
+index ca195af4..d8450141 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.cc
+@@ -52,6 +52,12 @@ void NNRTDelegate::InitCachePath() {
+ }
+ 
+ Status NNRTDelegate::Build(DelegateModel<schema::Primitive> *model) {
++  // dequant litegraph
++  auto ret_dequant = DequantLiteGraph(lite_graph_);
++  if (ret_dequant != kSuccess) {
++    MS_LOG(ERROR) << "Dequant litegraph failed.";
++    return kLiteError;
++  }
+ #ifdef SUPPORT_NNRT_METAGRAPH
+   if (IsKirinNPU()) {
+     MS_LOG(DEBUG) << "Choose to build nnrt model with Metagraph";
+@@ -121,22 +127,11 @@ Status NNRTDelegate::BuildKirinNPUModel(DelegateModel<schema::Primitive> *model)
+     MS_LOG_DEBUG << "set extension, item name: " << dst_extension.name << ", value size: " << dst_extension.valueSize;
+   }
+ 
+-  if (IsCustomModel()) {
+-    auto ret = OH_NNModel_BuildFromLiteGraph(nn_model, lite_graph_);
+-    if (ret != OH_NN_SUCCESS) {
+-      MS_LOG(ERROR) << "Build NNModel failed, ret: " << ret;
+-      OH_NNModel_Destroy(&nn_model);
+-      return kLiteError;
+-    }
+-  } else {
+-    SetKirinModelInputsAndOutputs(nn_model);
+-    auto ret = OH_NNModel_BuildFromMetaGraph(nn_model, meta_graph_, extensions.data(), extensions.size());
+-    FreeLiteGraph(&lite_graph_);
+-    if (ret != OH_NN_SUCCESS) {
+-      MS_LOG(ERROR) << "Build NNModel failed, ret: " << ret;
+-      OH_NNModel_Destroy(&nn_model);
+-      return kLiteError;
+-    }
++  auto ret = OH_NNModel_BuildFromLiteGraph(nn_model, lite_graph_, extensions.data(), extensions.size());
++  if (ret != OH_NN_SUCCESS) {
++    MS_LOG(ERROR) << "Build NNModel failed, ret: " << ret;
++    OH_NNModel_Destroy(&nn_model);
++    return kLiteError;
+   }
+ 
+   auto ret2 =  CreateFullModelKernel(model, nn_model);
+@@ -147,36 +142,6 @@ Status NNRTDelegate::BuildKirinNPUModel(DelegateModel<schema::Primitive> *model)
+   return kSuccess;
+ }
+ 
+-std::vector<OH_NN_TensorInfo> NNRTDelegate::CreateNNTensorInfos(const std::vector<uint32_t> &indices) const {
+-  std::vector<OH_NN_TensorInfo> nn_tensor_infos;
+-  for (auto index: indices) {
+-    auto tensor = lite_graph_->all_tensors_[index];
+-    auto shape = tensor->dims();
+-    auto data_type = tensor->dataType();
+-    auto name = tensor->name();
+-    auto format = tensor->format();
+-
+-    OH_NN_TensorInfo info;
+-    info.dataType = CastToNNRTDataType(static_cast<mindspore::DataType>(data_type));
+-    info.dimensions = shape->data();
+-    info.dimensionCount = shape->size();
+-    strcpy(info.name, name->c_str());
+-    info.format = CastToNNRTFormat(static_cast<Format>(format));
+-    nn_tensor_infos.push_back(info);
+-  }
+-  return nn_tensor_infos;
+-}
+-
+-Status NNRTDelegate::SetKirinModelInputsAndOutputs(OH_NNModel *nn_model) {
+-  std::vector<OH_NN_TensorInfo> inputInfos;
+-  std::vector<OH_NN_TensorInfo> outputInfos;
+-  auto input_infos = CreateNNTensorInfos(lite_graph_->input_indices_);
+-  auto output_infos = CreateNNTensorInfos(lite_graph_->output_indices_);
+-  OH_NNModel_SetInputsAndOutputsInfo(nn_model, input_infos.data(), input_infos.size(), output_infos.data(),
+-                                     output_infos.size());
+-  return kSuccess;
+-}
+-
+ Status NNRTDelegate::CreateFullModelKernel(DelegateModel<schema::Primitive> *model, OH_NNModel *nn_model) {
+   OH_NNCompilation *nn_compilation = OH_NNCompilation_Construct(nn_model);
+   if (nn_compilation == nullptr) {
+@@ -277,7 +242,7 @@ OH_NNModel *NNRTDelegate::CreateFullNNModel() {
+     return nullptr;
+   }
+ 
+-  auto ret = OH_NNModel_BuildFromLiteGraph(nn_model, lite_graph_);
++  auto ret = OH_NNModel_BuildFromLiteGraph(nn_model, lite_graph_, nullptr, 0);
+   if (ret != OH_NN_SUCCESS) {
+     MS_LOG(ERROR) << "Build NNModel failed, ret: " << ret;
+     OH_NNModel_Destroy(&nn_model);
+@@ -531,7 +496,7 @@ Status NNRTDelegate::CreateNNRTSubgraphKernels(DelegateModel<schema::Primitive>
+     auto sub_lite_graph = sub_lite_graphs[i];
+ 
+     OH_NNModel *nn_model = OH_NNModel_Construct();
+-    auto ret = OH_NNModel_BuildFromLiteGraph(nn_model, sub_lite_graph);
++    auto ret = OH_NNModel_BuildFromLiteGraph(nn_model, sub_lite_graph, nullptr, 0);
+     if (ret != OH_NN_SUCCESS) {
+       MS_LOG(ERROR) << "Build NNModel failed, ret: " << ret;
+       OH_NNModel_Destroy(&nn_model);
+@@ -735,10 +700,6 @@ OH_NN_DataType NNRTDelegate::CastToNNRTDataType(DataType data_type) {
+   return iter->second;
+ }
+ 
+-OH_NN_Format NNRTDelegate::CastToNNRTFormat(Format format) {
+-  return OH_NN_FORMAT_NHWC;
+-}
+-
+ Status NNRTDelegate::PrepareOutputs(DelegateModel<schema::Primitive> *model,
+                                     OH_NNExecutor *oh_nn_executor) {
+   auto output_tensors = model->outputs();
+@@ -754,6 +715,103 @@ Status NNRTDelegate::PrepareOutputs(DelegateModel<schema::Primitive> *model,
+   return kSuccess;
+ }
+ 
++schema::Tensor *NNRTDelegate::TensorToSchemaTensor(Tensor *lite_tensor, schema::Tensor *schema_tensor) {
++  flatbuffers::FlatBufferBuilder fbb(1024);
++  auto shape = lite_tensor->shape();
++  std::vector<int32_t> dim_vec(shape.begin(), shape.end());
++
++  auto quant_params = lite_tensor->quant_params();
++  std::vector<flatbuffers::Offset<mindspore::schema::QuantParam>> quant_vec;
++  quant_vec.reserve(quant_params.size());
++  for (auto q_param : quant_params) {
++    quant_vec.emplace_back(schema::CreateQuantParam(fbb, q_param.scale, q_param.zeroPoint, 0, 0, true, q_param.bitNum));
++  }
++  auto quant_clusters = lite_tensor->quant_clusters();
++
++  auto external_data = schema_tensor->externalData();
++  std::vector<flatbuffers::Offset<mindspore::schema::ExternalData>> external_data_vec;
++  if (external_data != nullptr) {
++    for (auto ed : *external_data) {
++      external_data_vec.emplace_back(schema::CreateExternalDataDirect(fbb, ed->checkSum()->c_str(), ed->location()->c_str(), 0, ed->length()));
++    }
++  }
++  uint8_t *data_src = reinterpret_cast<uint8_t *>(lite_tensor->data());
++  std::vector<uint8_t> data_vec(data_src, data_src + lite_tensor->Size());
++  auto tensor_offset = schema::CreateTensorDirect(fbb, schema_tensor->nodeType(), lite_tensor->data_type(), &dim_vec,
++                                                  schema_tensor->format(), 0, 0, &data_vec, &quant_vec,
++                                                  &quant_clusters, schema_tensor->name()->c_str(),
++                                                  schema_tensor->enableHuffmanCode(),
++                                                  mindspore::schema::WeightQuantCompressType_NONE, &external_data_vec);
++  fbb.Finish(tensor_offset);
++
++  auto buf = fbb.GetBufferPointer();
++  if (buf == nullptr) {
++    MS_LOG(ERROR) << "GetBufferPointer return nullptr";
++    fbb.Clear();
++    return nullptr;
++  }
++  size_t byte_num = fbb.GetSize();
++  auto tensor_buf = reinterpret_cast<char *>(malloc(byte_num));
++  if (tensor_buf == nullptr) {
++    MS_LOG(ERROR) << "malloc primitive_buf_ failed";
++    fbb.Clear();
++    return nullptr;
++  }
++  memcpy(tensor_buf, buf, fbb.GetSize());
++  auto tensor = flatbuffers::GetRoot<schema::Tensor>(tensor_buf);
++  fbb.Clear();
++  return const_cast<schema::Tensor *>(tensor);
++}
++
++int NNRTDelegate::DequantNodeInputs(LiteGraph::Node *node) {
++  auto in_size = node->input_indices_.size();
++  int ret = RET_OK;
++  for (size_t i = 0; i < in_size; i++) {
++    auto tensor_index = node->input_indices_[i];
++    auto *src_tensor = lite_graph_->all_tensors_[tensor_index];
++    auto input = dequant_src_tensors_->at(tensor_index);
++    if (!input->IsConst() || !(src_tensor->dataType() == kNumberTypeInt8 ||
++        src_tensor->dataType() == kNumberTypeInt16 || src_tensor->dataType() == kNumberTypeInt32)) {
++      continue;
++    }
++    auto dst_tensor = TensorToSchemaTensor(input, src_tensor);
++    if (dst_tensor != nullptr) {
++      dequant_schema_tensors_.emplace(tensor_index, dst_tensor);
++      replaced_schema_tensors_.emplace_back(src_tensor);
++    } else {
++      MS_LOG(ERROR) << "create dequant schema tensor failed, node: " << node->name_ << ", tensor_index: "
++                    << tensor_index;
++      ret = RET_ERROR;
++      break;
++    }
++  }
++  return ret;
++}
++
++Status NNRTDelegate::DequantLiteGraph(LiteGraph *lite_graph) {
++  for (auto node_index : lite_graph->sub_graphs_[0]->node_indices_) {
++    auto node = lite_graph->all_nodes_[node_index];
++
++    if (node->quant_type_ != static_cast<int>(schema::QuantType_QUANT_WEIGHT)) {
++      continue;
++    }
++    auto ret = DequantNodeInputs(node);
++    if (ret != RET_OK) {
++      MS_LOG(ERROR) << "Dequant node failed: " << ret << ", node_name: " << node->name_;
++      for (auto iter : dequant_schema_tensors_) {
++        delete iter.second;
++        iter.second = nullptr;
++      }
++      return kLiteNotSupport;
++    }
++    node->quant_type_ = schema::QuantType_QUANT_NONE;
++  }
++  for (auto iter : dequant_schema_tensors_) {
++    lite_graph_->all_tensors_[iter.first] = iter.second;
++  }
++  return kSuccess;
++}
++
+ void NNRTDelegate::ShallowCopyLiteGraph(const lite::LiteGraph &lite_graph) {
+   Status ret;
+   for (auto node : lite_graph.all_nodes_) {
+@@ -863,6 +921,10 @@ NNRTDelegate::~NNRTDelegate() {
+   if (lite_graph_ != nullptr) {
+     MS_LOG(ERROR) << "Delete NNRTDelegate.";
+   }
++  for (auto iter : dequant_schema_tensors_) {
++    delete iter.second;
++    iter.second = nullptr;
++  }
+ }
+ }  // namespace lite
+ }  // namespace mindspore
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h
+index 4cf357d6..778553ef 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_delegate.h
+@@ -50,6 +50,9 @@ class NNRTDelegate : public Delegate {
+   void SetMetaGraph(const void *meta_graph) {
+     meta_graph_ = meta_graph;
+   }
++  void SetDequantTensors(std::vector<Tensor *> *src_tensors) {
++    dequant_src_tensors_ = src_tensors;
++  }
+   static std::vector<NNRTOpRange> GetNNRTSubgraphRanges(DelegateModel<schema::Primitive> *model,
+                                                         const std::vector<bool> &op_supports);
+ 
+@@ -73,14 +76,14 @@ class NNRTDelegate : public Delegate {
+   Status PrepareOutputs(DelegateModel<schema::Primitive> *model, OH_NNExecutor *oh_nn_executor);
+   Status InitNNCompilation(OH_NNCompilation *nn_compilation) const;
+   static OH_NN_DataType CastToNNRTDataType(mindspore::DataType data_type);
+-  static OH_NN_Format CastToNNRTFormat(Format format);
+   bool IsCustomModel() const;
++  Status DequantLiteGraph(LiteGraph *lite_graph);
++  int DequantNodeInputs(LiteGraph::Node *node);
++  schema::Tensor *TensorToSchemaTensor(Tensor *lite_tensor, schema::Tensor *schema_tensor);
+ 
+ #ifdef SUPPORT_NNRT_METAGRAPH
+   bool IsKirinNPU() const;
+   Status BuildKirinNPUModel(DelegateModel<schema::Primitive> *model);
+-  Status SetKirinModelInputsAndOutputs(OH_NNModel *nn_model);
+-  std::vector<OH_NN_TensorInfo> CreateNNTensorInfos(const std::vector<uint32_t> &indices) const;
+   Status CreateFullModelKernel(DelegateModel<schema::Primitive> *model, OH_NNModel *nn_model);
+ #endif
+ 
+@@ -90,6 +93,9 @@ class NNRTDelegate : public Delegate {
+   std::string cache_path_ = "";
+   uint32_t cache_version_ = 0;
+   std::vector<OH_NNExecutor *> nn_executor_list_;
++  std::vector<Tensor *> *dequant_src_tensors_;
++  std::map<uint32_t, schema::Tensor *> dequant_schema_tensors_;
++  std::vector<schema::Tensor *> replaced_schema_tensors_;
+ };
+ }  // namespace lite
+ }  // namespace mindspore
+diff --git a/mindspore/lite/src/litert/scheduler.cc b/mindspore/lite/src/litert/scheduler.cc
+index 96efd972..d6749471 100644
+--- a/mindspore/lite/src/litert/scheduler.cc
++++ b/mindspore/lite/src/litert/scheduler.cc
+@@ -514,6 +514,7 @@ int Scheduler::ReplaceDelegateKernels(std::vector<kernel::KernelExec *> *dst_ker
+     void *meta_graph = reinterpret_cast<void *>(
+       const_cast<mindspore::schema::MetaGraph *>(mindspore::schema::GetMetaGraph(this->src_model_->buf)));
+     delegate->SetMetaGraph(meta_graph);
++    delegate->SetDequantTensors(this->src_tensors_);
+   }
+ #endif
+ 
+-- 
+2.17.1
+

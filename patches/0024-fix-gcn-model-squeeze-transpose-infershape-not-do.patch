@@ -1,0 +1,78 @@
+From b163f226d50d0b43813c0d61929b39dc8529c52d Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Sat, 15 Jun 2024 21:14:45 +0800
+Subject: [PATCH] fix gcn model squeeze/transpose infershape not do
+
+---
+ mindspore/lite/src/litert/executor.cc            | 16 +++++++++++++++-
+ .../src/litert/kernel/cpu/nnacl/nnacl_reshape.cc | 12 ++++++++----
+ 2 files changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/mindspore/lite/src/litert/executor.cc b/mindspore/lite/src/litert/executor.cc
+index b4e9d1d3..cb6d7451 100644
+--- a/mindspore/lite/src/litert/executor.cc
++++ b/mindspore/lite/src/litert/executor.cc
+@@ -1,5 +1,5 @@
+ /**
+- * Copyright 2020 Huawei Technologies Co., Ltd
++ * Copyright 2024 Huawei Technologies Co., Ltd
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -31,11 +31,25 @@ int Executor::Run(const std::vector<Tensor *> &in_tensors, const std::vector<Ten
+ 
+   // clear ref_count
+   for (auto *kernel : kernels) {
++    CHECK_NULL_RETURN(kernel);
+     for (auto *tensor : kernel->in_tensors()) {
++      CHECK_NULL_RETURN(tensor);
+       tensor->set_ref_count(0);
+     }
+   }
+ 
++  // clear output ref_couont
++  for (auto output_tensor : out_tensors) {
++    CHECK_NULL_RETURN(output_tensor);
++    if (output_tensor->allocator() != nullptr) {
++      output_tensor->DecRefCount();
++    } else {
++      /* user set graph->-output-tensor from outside */
++      output_tensor->set_own_data(false);
++      output_tensor->set_allocator(nullptr);
++    }
++  }
++
+   for (auto kernel : kernels) {
+     int ret = kernel->Execute(before, after);
+     if (ret != RET_OK) {
+diff --git a/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_reshape.cc b/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_reshape.cc
+index ef479364..ab7f2796 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_reshape.cc
++++ b/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_reshape.cc
+@@ -1,5 +1,5 @@
+ /**
+- * Copyright 2023 Huawei Technologies Co., Ltd
++ * Copyright 2024 Huawei Technologies Co., Ltd
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -41,9 +41,13 @@ int ReshapeKernel::Run() {
+     return RET_OK;
+   }
+ 
+-  if (in_tensor->data_type() != out_tensor->data_type() || in_tensor->data() == nullptr ||
+-      in_tensor->Size() != out_tensor->Size()) {
+-    MS_LOG(ERROR) << "NNACL check reshape parameter failed. Kernel: " << name();
++  if (in_tensor->data_type() != out_tensor->data_type()) {
++    MS_LOG(ERROR) << "NNACL check in_tensor and out_tensor dtype failed. Kernel: " << name();
++    return RET_ERROR;
++  }
++
++  if (in_tensor->data() == nullptr || in_tensor->Size() != out_tensor->Size()) {
++    MS_LOG(ERROR) << "NNACL check in_tensor and out_tensor size failed, Kernel: " << name();
+     return RET_ERROR;
+   }
+ 
+-- 
+2.17.1
+

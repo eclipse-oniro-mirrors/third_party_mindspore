@@ -1,0 +1,64 @@
+From b476d213378201b53b0eb6eb8e4e9c72780e345e Mon Sep 17 00:00:00 2001
+From: Zhu Guodong <zhuguodong0001@163.com>
+Date: Thu, 25 Jul 2024 16:55:33 +0800
+Subject: [PATCH] revert cache executor
+
+---
+ mindspore/lite/src/litert/cache_session.cc | 14 --------------
+ mindspore/lite/src/litert/cache_session.h  |  1 -
+ mindspore/lite/src/litert/lite_session.h   |  2 +-
+ 3 files changed, 1 insertion(+), 16 deletions(-)
+
+diff --git a/mindspore/lite/src/litert/cache_session.cc b/mindspore/lite/src/litert/cache_session.cc
+index 7bafe3f7..7e171ce5 100644
+--- a/mindspore/lite/src/litert/cache_session.cc
++++ b/mindspore/lite/src/litert/cache_session.cc
+@@ -77,20 +77,6 @@ int CacheSession::CompileGraph(Model *model) {
+   return RET_OK;
+ }
+ 
+-int CacheSession::InitExecutor() {
+-  executor_ = new (std::nothrow) Executor();
+-  if (executor_ == nullptr) {
+-    MS_LOG(ERROR) << "New Executor failed";
+-    return RET_ERROR;
+-  }
+-  auto ret = executor_->Prepare(kernels_, inputs_, outputs_, context_.get());
+-  if (ret != RET_OK) {
+-    MS_LOG(ERROR) << "Prepare executor failed: " << ret;
+-    return ret;
+-  }
+-  return RET_OK;
+-}
+-
+ int CacheSession::ConvertInOutTensors(const lite::Model *model) {
+   MS_ASSERT(model != nullptr);
+   auto lite_model = reinterpret_cast<const lite::LiteModel *>(model);
+diff --git a/mindspore/lite/src/litert/cache_session.h b/mindspore/lite/src/litert/cache_session.h
+index f0ae185a..2127aa5a 100644
+--- a/mindspore/lite/src/litert/cache_session.h
++++ b/mindspore/lite/src/litert/cache_session.h
+@@ -114,7 +114,6 @@ class CacheSession : public LiteSession {
+   Status CreateFullModelKernel();
+   Status InitNNCompilation(OH_NNCompilation *nn_compilation) const;
+   int ConvertInOutTensors(const lite::Model *model);
+-  int InitExecutor() override;
+   std::vector<mindspore::MSTensor> ms_inputs_;
+   std::vector<mindspore::MSTensor> ms_outputs_;
+ 
+diff --git a/mindspore/lite/src/litert/lite_session.h b/mindspore/lite/src/litert/lite_session.h
+index 487b382a..9d955a99 100644
+--- a/mindspore/lite/src/litert/lite_session.h
++++ b/mindspore/lite/src/litert/lite_session.h
+@@ -168,7 +168,7 @@ class MS_API LiteSession {
+   static void MarkSharedWeight(const std::vector<kernel::KernelExec *> &kernels);
+   std::string ParseWeightPath();
+   bool IsMmapEnable();
+-  virtual int InitExecutor();
++  int InitExecutor();
+ 
+  private:
+   int PreCheck(Model *model);
+-- 
+2.34.1
+
