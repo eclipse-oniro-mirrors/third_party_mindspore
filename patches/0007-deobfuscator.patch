@@ -1,0 +1,674 @@
+diff --git a/cmake/package_lite.cmake b/cmake/package_lite.cmake
+index f15724f1e5..4175c44c02 100644
+--- a/cmake/package_lite.cmake
++++ b/cmake/package_lite.cmake
+@@ -458,10 +458,6 @@ if(PLATFORM_ARM64)
+                     DESTINATION ${RUNTIME_LIB_DIR} COMPONENT ${RUNTIME_COMPONENT_NAME})
+         endif()
+     endif()
+-    if(MSLITE_ENABLE_MODEL_OBF)
+-        install(FILES ${TOP_DIR}/mindspore/lite/tools/obfuscator/lib/android-aarch64/libmsdeobfuscator-lite.so
+-                DESTINATION ${RUNTIME_LIB_DIR} COMPONENT ${RUNTIME_COMPONENT_NAME})
+-    endif()
+     install(FILES ${TOP_DIR}/mindspore/core/ir/dtype/type_id.h DESTINATION ${RUNTIME_INC_DIR}/ir/dtype
+             COMPONENT ${RUNTIME_COMPONENT_NAME})
+     install(FILES
+@@ -705,10 +701,6 @@ elseif(PLATFORM_ARM32)
+                     DESTINATION ${RUNTIME_LIB_DIR} COMPONENT ${RUNTIME_COMPONENT_NAME})
+         endif()
+     endif()
+-    if(MSLITE_ENABLE_MODEL_OBF)
+-        install(FILES ${TOP_DIR}/mindspore/lite/tools/obfuscator/lib/android-aarch32/libmsdeobfuscator-lite.so
+-                DESTINATION ${RUNTIME_LIB_DIR} COMPONENT ${RUNTIME_COMPONENT_NAME})
+-    endif()
+     install(FILES ${TOP_DIR}/mindspore/core/ir/dtype/type_id.h DESTINATION ${RUNTIME_INC_DIR}/ir/dtype
+             COMPONENT ${RUNTIME_COMPONENT_NAME})
+     install(FILES
+@@ -906,13 +898,6 @@ else()
+                     DESTINATION ${RUNTIME_LIB_DIR} COMPONENT ${RUNTIME_COMPONENT_NAME})
+         endif()
+     endif()
+-    if(MSLITE_ENABLE_MODEL_OBF)
+-        install(FILES ${TOP_DIR}/mindspore/lite/tools/obfuscator/bin/linux-x64/msobfuscator
+-                DESTINATION ${OBFUSCATOR_ROOT_DIR} PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+-                GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE COMPONENT ${RUNTIME_COMPONENT_NAME})
+-        install(FILES ${TOP_DIR}/mindspore/lite/tools/obfuscator/lib/linux-x64/libmsdeobfuscator-lite.so
+-                DESTINATION ${RUNTIME_LIB_DIR} COMPONENT ${RUNTIME_COMPONENT_NAME})
+-    endif()
+     if(MSLITE_ENABLE_RUNTIME_GLOG)
+         install(FILES ${glog_LIBPATH}/libmindspore_glog.so.0.4.0 DESTINATION ${GLOG_DIR} RENAME libmindspore_glog.so.0
+                 COMPONENT ${RUNTIME_COMPONENT_NAME})
+diff --git a/mindspore/lite/include/model.h b/mindspore/lite/include/model.h
+index b96c7e35bf..629978f1bc 100644
+--- a/mindspore/lite/include/model.h
++++ b/mindspore/lite/include/model.h
+@@ -57,12 +57,6 @@ struct MS_API LiteGraph {
+   std::vector<mindspore::schema::Tensor *> all_tensors_;
+   std::vector<Node *> all_nodes_;
+   std::vector<SubGraph *> sub_graphs_;
+-#ifdef ENABLE_MODEL_OBF
+-  std::vector<uint32_t> all_prims_type_;
+-  std::vector<uint32_t> all_nodes_stat_;
+-  bool model_obfuscated_ = false;
+-  std::vector<unsigned char *> deobf_prims_;
+-#endif
+ 
+   std::string ToString() const;
+ };
+@@ -72,6 +66,7 @@ struct MS_API Model {
+   char *buf = nullptr;
+   size_t buf_size_ = 0;
+   LiteModelType model_type_ = mindspore::lite::ModelType_MSLite;
++  void *deobf = nullptr;
+ 
+   /// \brief Static method to create a Model pointer.
+   static Model *Import(const char *model_buf, size_t size);
+diff --git a/mindspore/lite/include/registry/deobf_processor.h b/mindspore/lite/include/registry/deobf_processor.h
+new file mode 100644
+index 0000000000..5987233fd7
+--- /dev/null
++++ b/mindspore/lite/include/registry/deobf_processor.h
+@@ -0,0 +1,77 @@
++/**
++ * Copyright 2021 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef MINDSPORE_LITE_INCLUDE_REGISTRY_DEOBFPROCESSOR_H_
++#define MINDSPORE_LITE_INCLUDE_REGISTRY_DEOBFPROCESSOR_H_
++
++#include <vector>
++#include <string>
++#include <numeric>
++#include "src/common/prim_util.h"
++#include "src/common/log.h"
++#include "include/model.h"
++#include "schema/inner/model_generated.h"
++
++namespace mindspore::lite {
++
++  enum DeObfRet : uint32_t {
++    kDeObfFailed = 0,        ///<Deobfuscator failed
++    kNoObf = 1,               ///<The node has not been obfuscated
++    kDeObfSuccess = 2,        ///<Deobfuscate success
++  };
++
++  class DeObfProcessor {
++    public:
++      DeObfProcessor() = default;
++
++      bool GetModelDeObf(const void *meta_graph, Model *model);
++
++      void DeObfuscate(Model *model);
++
++      DeObfRet CreateDeObfNode(const schema::Primitive *&src_prim, int i, int schema__version);
++
++      std::vector<uint32_t> all_prims_type_;
++      std::vector<uint32_t> all_nodes_stat_;
++      bool model_obfuscated_ = false;
++      void *model_deobf = nullptr;
++  };
++
++  typedef void (*ObfCreateFunc)(Model &model);
++
++  class MS_API DeObfRegister {
++    public:
++      static bool (DeObfProcessor::*GetModelDeObfReg)(const void *meta_graph, Model *model);
++      static void (DeObfProcessor::*DeObfuscateReg)(Model *model);
++      static DeObfRet (DeObfProcessor::*CreateDeObfNodeReg)(const schema::Primitive *&src_prim, int i, int schema__version);
++      static void *deobf_handle;
++
++      DeObfRegister() = default;
++      ~DeObfRegister() = default;
++
++      static ObfCreateFunc NewDeObfProcessor;
++
++      static void Fail(Model &model){MS_LOG(INFO) << "DeObfuscator not registered!";}
++
++      MS_API static void RegisterDeObfuscator(ObfCreateFunc func){
++        if(func == nullptr){
++          MS_LOG(WARNING) << "Register invalid deobfuscator";
++          return;
++        }
++        NewDeObfProcessor = func;
++      }
++  };
++}
++#endif
+diff --git a/mindspore/lite/schema/inner/model_generated.h b/mindspore/lite/schema/inner/model_generated.h
+index c3bc5dbfb0..6f4bd14bd6 100644
+--- a/mindspore/lite/schema/inner/model_generated.h
++++ b/mindspore/lite/schema/inner/model_generated.h
+@@ -2661,7 +2661,9 @@ struct MetaGraphT : public flatbuffers::NativeTable {
+   std::vector<std::unique_ptr<mindspore::schema::TensorT>> allTensors{};
+   std::vector<std::unique_ptr<mindspore::schema::SubGraphT>> subGraph{};
+   bool obfuscate = false;
++  bool encrypt = false;
+   std::vector<uint8_t> obfMetaData{};
++  std::vector<uint8_t> decryptTable{};
+ };
+ 
+ struct MetaGraph FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+@@ -2681,7 +2683,9 @@ struct MetaGraph FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+     VT_ALLTENSORS = 18,
+     VT_SUBGRAPH = 20,
+     VT_OBFUSCATE = 22,
+-    VT_OBFMETADATA = 24
++    VT_ENCRYPT = 24,
++    VT_OBFMETADATA = 26,
++    VT_DECRYPTTABLE = 28
+   };
+   const flatbuffers::String *name() const {
+     return GetPointer<const flatbuffers::String *>(VT_NAME);
+@@ -2743,12 +2747,24 @@ struct MetaGraph FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+   bool mutate_obfuscate(bool _obfuscate) {
+     return SetField<uint8_t>(VT_OBFUSCATE, static_cast<uint8_t>(_obfuscate), 0);
+   }
++  bool encrypt() const {
++    return GetField<uint8_t>(VT_ENCRYPT, 0) != 0;
++  }
++  bool mutate_encrypt(bool _encrypt) {
++    return SetField<uint8_t>(VT_ENCRYPT, static_cast<uint8_t>(_encrypt), 0);
++  }
+   const flatbuffers::Vector<uint8_t> *obfMetaData() const {
+     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_OBFMETADATA);
+   }
+   flatbuffers::Vector<uint8_t> *mutable_obfMetaData() {
+     return GetPointer<flatbuffers::Vector<uint8_t> *>(VT_OBFMETADATA);
+   }
++  const flatbuffers::Vector<uint8_t> *decryptTable() const {
++    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DECRYPTTABLE);
++  }
++  flatbuffers::Vector<uint8_t> *mutable_decryptTable() {
++    return GetPointer<flatbuffers::Vector<uint8_t> *>(VT_DECRYPTTABLE);
++  }
+   bool Verify(flatbuffers::Verifier &verifier) const {
+     return VerifyTableStart(verifier) &&
+            VerifyOffset(verifier, VT_NAME) &&
+@@ -2771,8 +2787,11 @@ struct MetaGraph FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+            verifier.VerifyVector(subGraph()) &&
+            verifier.VerifyVectorOfTables(subGraph()) &&
+            VerifyField<uint8_t>(verifier, VT_OBFUSCATE) &&
++           VerifyField<uint8_t>(verifier, VT_ENCRYPT) &&
+            VerifyOffset(verifier, VT_OBFMETADATA) &&
+            verifier.VerifyVector(obfMetaData()) &&
++           VerifyOffset(verifier, VT_DECRYPTTABLE) &&
++           verifier.VerifyVector(decryptTable()) &&
+            verifier.EndTable();
+   }
+   MetaGraphT *UnPack(const flatbuffers::resolver_function_t *_resolver = nullptr) const;
+@@ -2814,9 +2833,15 @@ struct MetaGraphBuilder {
+   void add_obfuscate(bool obfuscate) {
+     fbb_.AddElement<uint8_t>(MetaGraph::VT_OBFUSCATE, static_cast<uint8_t>(obfuscate), 0);
+   }
++  void add_encrypt(bool encrypt) {
++    fbb_.AddElement<uint8_t>(MetaGraph::VT_OBFUSCATE, static_cast<uint8_t>(encrypt), 0);
++  }
+   void add_obfMetaData(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> obfMetaData) {
+     fbb_.AddOffset(MetaGraph::VT_OBFMETADATA, obfMetaData);
+   }
++  void add_decryptTable(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> decryptTable) {
++    fbb_.AddOffset(MetaGraph::VT_DECRYPTTABLE, decryptTable);
++  }
+   explicit MetaGraphBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+         : fbb_(_fbb) {
+     start_ = fbb_.StartTable();
+@@ -2840,8 +2865,11 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraph(
+     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<mindspore::schema::Tensor>>> allTensors = 0,
+     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<mindspore::schema::SubGraph>>> subGraph = 0,
+     bool obfuscate = false,
+-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> obfMetaData = 0) {
++    bool encrypt = false,
++    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> obfMetaData = 0,
++    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> decryptTable = 0) {
+   MetaGraphBuilder builder_(_fbb);
++  builder_.add_decryptTable(decryptTable);
+   builder_.add_obfMetaData(obfMetaData);
+   builder_.add_subGraph(subGraph);
+   builder_.add_allTensors(allTensors);
+@@ -2853,6 +2881,7 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraph(
+   builder_.add_version(version);
+   builder_.add_name(name);
+   builder_.add_obfuscate(obfuscate);
++  builder_.add_encrypt(encrypt);
+   return builder_.Finish();
+ }
+ 
+@@ -2868,7 +2897,9 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraphDirect(
+     const std::vector<flatbuffers::Offset<mindspore::schema::Tensor>> *allTensors = nullptr,
+     const std::vector<flatbuffers::Offset<mindspore::schema::SubGraph>> *subGraph = nullptr,
+     bool obfuscate = false,
+-    const std::vector<uint8_t> *obfMetaData = nullptr) {
++    bool encrypt = false,
++    const std::vector<uint8_t> *obfMetaData = nullptr,
++    const std::vector<uint8_t> *decryptTable = nullptr) {
+   auto name__ = name ? _fbb.CreateString(name) : 0;
+   auto version__ = version ? _fbb.CreateString(version) : 0;
+   auto inputIndex__ = inputIndex ? _fbb.CreateVector<uint32_t>(*inputIndex) : 0;
+@@ -2877,6 +2908,7 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraphDirect(
+   auto allTensors__ = allTensors ? _fbb.CreateVector<flatbuffers::Offset<mindspore::schema::Tensor>>(*allTensors) : 0;
+   auto subGraph__ = subGraph ? _fbb.CreateVector<flatbuffers::Offset<mindspore::schema::SubGraph>>(*subGraph) : 0;
+   auto obfMetaData__ = obfMetaData ? _fbb.CreateVector<uint8_t>(*obfMetaData) : 0;
++  auto decryptTable__ = decryptTable ? _fbb.CreateVector<uint8_t>(*decryptTable) : 0;
+   return mindspore::schema::CreateMetaGraph(
+       _fbb,
+       name__,
+@@ -2889,7 +2921,9 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraphDirect(
+       allTensors__,
+       subGraph__,
+       obfuscate,
+-      obfMetaData__);
++      encrypt,
++      obfMetaData__,
++      decryptTable__);
+ }
+ 
+ flatbuffers::Offset<MetaGraph> CreateMetaGraph(flatbuffers::FlatBufferBuilder &_fbb, const MetaGraphT *_o, const flatbuffers::rehasher_function_t *_rehasher = nullptr);
+@@ -3177,7 +3211,9 @@ inline void MetaGraph::UnPackTo(MetaGraphT *_o, const flatbuffers::resolver_func
+   { auto _e = allTensors(); if (_e) { _o->allTensors.resize(_e->size()); for (flatbuffers::uoffset_t _i = 0; _i < _e->size(); _i++) { _o->allTensors[_i] = std::unique_ptr<mindspore::schema::TensorT>(_e->Get(_i)->UnPack(_resolver)); } } }
+   { auto _e = subGraph(); if (_e) { _o->subGraph.resize(_e->size()); for (flatbuffers::uoffset_t _i = 0; _i < _e->size(); _i++) { _o->subGraph[_i] = std::unique_ptr<mindspore::schema::SubGraphT>(_e->Get(_i)->UnPack(_resolver)); } } }
+   { auto _e = obfuscate(); _o->obfuscate = _e; }
++  { auto _e = encrypt(); _o->encrypt = _e; }
+   { auto _e = obfMetaData(); if (_e) { _o->obfMetaData.resize(_e->size()); std::copy(_e->begin(), _e->end(), _o->obfMetaData.begin()); } }
++  { auto _e = decryptTable(); if (_e) { _o->decryptTable.resize(_e->size()); std::copy(_e->begin(), _e->end(), _o->decryptTable.begin()); } }
+ }
+ 
+ inline flatbuffers::Offset<MetaGraph> MetaGraph::Pack(flatbuffers::FlatBufferBuilder &_fbb, const MetaGraphT* _o, const flatbuffers::rehasher_function_t *_rehasher) {
+@@ -3198,7 +3234,9 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraph(flatbuffers::FlatBufferBui
+   auto _allTensors = _o->allTensors.size() ? _fbb.CreateVector<flatbuffers::Offset<mindspore::schema::Tensor>> (_o->allTensors.size(), [](size_t i, _VectorArgs *__va) { return CreateTensor(*__va->__fbb, __va->__o->allTensors[i].get(), __va->__rehasher); }, &_va ) : 0;
+   auto _subGraph = _o->subGraph.size() ? _fbb.CreateVector<flatbuffers::Offset<mindspore::schema::SubGraph>> (_o->subGraph.size(), [](size_t i, _VectorArgs *__va) { return CreateSubGraph(*__va->__fbb, __va->__o->subGraph[i].get(), __va->__rehasher); }, &_va ) : 0;
+   auto _obfuscate = _o->obfuscate;
++  auto _encrypt = _o->encrypt;
+   auto _obfMetaData = _o->obfMetaData.size() ? _fbb.CreateVector(_o->obfMetaData) : 0;
++  auto _decryptTable = _o->decryptTable.size() ? _fbb.CreateVector(_o->decryptTable) : 0;
+   return mindspore::schema::CreateMetaGraph(
+       _fbb,
+       _name,
+@@ -3211,7 +3249,9 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraph(flatbuffers::FlatBufferBui
+       _allTensors,
+       _subGraph,
+       _obfuscate,
+-      _obfMetaData);
++      _encrypt,
++      _obfMetaData,
++      _decryptTable);
+ }
+ 
+ inline const flatbuffers::TypeTable *WeightQuantCompressTypeTypeTable() {
+@@ -3374,6 +3414,8 @@ inline const flatbuffers::TypeTable *MetaGraphTypeTable() {
+     { flatbuffers::ET_SEQUENCE, 1, 1 },
+     { flatbuffers::ET_SEQUENCE, 1, 2 },
+     { flatbuffers::ET_BOOL, 0, -1 },
++    { flatbuffers::ET_BOOL, 0, -1 },
++    { flatbuffers::ET_UCHAR, 1, -1 },
+     { flatbuffers::ET_UCHAR, 1, -1 }
+   };
+   static const flatbuffers::TypeFunction type_refs[] = {
+diff --git a/mindspore/lite/schema/model.fbs b/mindspore/lite/schema/model.fbs
+index 0b03db5bf1..7a221bdce9 100644
+--- a/mindspore/lite/schema/model.fbs
++++ b/mindspore/lite/schema/model.fbs
+@@ -116,7 +116,9 @@ table MetaGraph {
+     allTensors: [Tensor]; // weight + input + output
+     subGraph : [SubGraph];
+     obfuscate: bool = false;
++    encrypt : bool = false;
+     obfMetaData: [ubyte];
++    decryptTable: [ubyte];
+ }
+ 
+ root_type MetaGraph;
+diff --git a/mindspore/lite/schema/model_generated.h b/mindspore/lite/schema/model_generated.h
+index 7692acbe3e..7ef01e863e 100644
+--- a/mindspore/lite/schema/model_generated.h
++++ b/mindspore/lite/schema/model_generated.h
+@@ -2399,7 +2399,9 @@ struct MetaGraph FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+     VT_ALLTENSORS = 18,
+     VT_SUBGRAPH = 20,
+     VT_OBFUSCATE = 22,
+-    VT_OBFMETADATA = 24
++    VT_ENCRYPT = 24,
++    VT_OBFMETADATA = 26,
++    VT_DECRYPTTABLE = 28
+   };
+   const flatbuffers::String *name() const {
+     return GetPointer<const flatbuffers::String *>(VT_NAME);
+@@ -2431,9 +2433,15 @@ struct MetaGraph FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+   bool obfuscate() const {
+     return GetField<uint8_t>(VT_OBFUSCATE, 0) != 0;
+   }
++  bool encrypt() const {
++    return GetField<uint8_t>(VT_ENCRYPT, 0) != 0;
++  }
+   const flatbuffers::Vector<uint8_t> *obfMetaData() const {
+     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_OBFMETADATA);
+   }
++  const flatbuffers::Vector<uint8_t> *decryptTable() const {
++    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DECRYPTTABLE);
++  }
+   bool Verify(flatbuffers::Verifier &verifier) const {
+     return VerifyTableStart(verifier) &&
+            VerifyOffset(verifier, VT_NAME) &&
+@@ -2456,8 +2464,11 @@ struct MetaGraph FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+            verifier.VerifyVector(subGraph()) &&
+            verifier.VerifyVectorOfTables(subGraph()) &&
+            VerifyField<uint8_t>(verifier, VT_OBFUSCATE) &&
++           VerifyField<uint8_t>(verifier, VT_ENCRYPT) &&
+            VerifyOffset(verifier, VT_OBFMETADATA) &&
+            verifier.VerifyVector(obfMetaData()) &&
++           VerifyOffset(verifier, VT_DECRYPTTABLE) &&
++           verifier.VerifyVector(decryptTable()) &&
+            verifier.EndTable();
+   }
+ };
+@@ -2496,9 +2507,15 @@ struct MetaGraphBuilder {
+   void add_obfuscate(bool obfuscate) {
+     fbb_.AddElement<uint8_t>(MetaGraph::VT_OBFUSCATE, static_cast<uint8_t>(obfuscate), 0);
+   }
++  void add_encrypt(bool encrypt) {
++    fbb_.AddElement<uint8_t>(MetaGraph::VT_ENCRYPT, static_cast<uint8_t>(encrypt), 0);
++  }
+   void add_obfMetaData(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> obfMetaData) {
+     fbb_.AddOffset(MetaGraph::VT_OBFMETADATA, obfMetaData);
+   }
++  void add_decryptTable(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> decryptTable) {
++    fbb_.AddOffset(MetaGraph::VT_DECRYPTTABLE, decryptTable);
++  }
+   explicit MetaGraphBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+         : fbb_(_fbb) {
+     start_ = fbb_.StartTable();
+@@ -2522,8 +2539,11 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraph(
+     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<mindspore::schema::Tensor>>> allTensors = 0,
+     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<mindspore::schema::SubGraph>>> subGraph = 0,
+     bool obfuscate = false,
+-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> obfMetaData = 0) {
++    bool encrypt = false,
++    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> obfMetaData = 0,
++    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> decryptTable = 0) {
+   MetaGraphBuilder builder_(_fbb);
++  builder_.add_decryptTable(decryptTable);
+   builder_.add_obfMetaData(obfMetaData);
+   builder_.add_subGraph(subGraph);
+   builder_.add_allTensors(allTensors);
+@@ -2534,6 +2554,7 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraph(
+   builder_.add_fmkType(fmkType);
+   builder_.add_version(version);
+   builder_.add_name(name);
++  builder_.add_encrypt(encrypt);
+   builder_.add_obfuscate(obfuscate);
+   return builder_.Finish();
+ }
+@@ -2550,7 +2571,9 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraphDirect(
+     const std::vector<flatbuffers::Offset<mindspore::schema::Tensor>> *allTensors = nullptr,
+     const std::vector<flatbuffers::Offset<mindspore::schema::SubGraph>> *subGraph = nullptr,
+     bool obfuscate = false,
+-    const std::vector<uint8_t> *obfMetaData = nullptr) {
++    bool encrypt = false,
++    const std::vector<uint8_t> *obfMetaData = nullptr,
++    const std::vector<uint8_t> *decryptTable = nullptr) {
+   auto name__ = name ? _fbb.CreateString(name) : 0;
+   auto version__ = version ? _fbb.CreateString(version) : 0;
+   auto inputIndex__ = inputIndex ? _fbb.CreateVector<uint32_t>(*inputIndex) : 0;
+@@ -2559,6 +2582,7 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraphDirect(
+   auto allTensors__ = allTensors ? _fbb.CreateVector<flatbuffers::Offset<mindspore::schema::Tensor>>(*allTensors) : 0;
+   auto subGraph__ = subGraph ? _fbb.CreateVector<flatbuffers::Offset<mindspore::schema::SubGraph>>(*subGraph) : 0;
+   auto obfMetaData__ = obfMetaData ? _fbb.CreateVector<uint8_t>(*obfMetaData) : 0;
++  auto decryptTable__ = decryptTable ? _fbb.CreateVector<uint8_t>(*decryptTable) : 0;
+   return mindspore::schema::CreateMetaGraph(
+       _fbb,
+       name__,
+@@ -2571,7 +2595,9 @@ inline flatbuffers::Offset<MetaGraph> CreateMetaGraphDirect(
+       allTensors__,
+       subGraph__,
+       obfuscate,
+-      obfMetaData__);
++      encrypt,
++      obfMetaData__,
++      decryptTable__);
+ }
+ 
+ inline const mindspore::schema::MetaGraph *GetMetaGraph(const void *buf) {
+diff --git a/mindspore/lite/src/CMakeLists.txt b/mindspore/lite/src/CMakeLists.txt
+index 470334730f..4293918967 100644
+--- a/mindspore/lite/src/CMakeLists.txt
++++ b/mindspore/lite/src/CMakeLists.txt
+@@ -633,11 +633,6 @@ if(NOT WIN32)
+     target_link_libraries(mindspore-lite dl)
+ endif()
+ 
+-if(MSLITE_ENABLE_MODEL_OBF)
+-    target_link_libraries(mindspore-lite ${OBF_LIB_DIR}/libmsdeobfuscator-lite.so)
+-    target_link_libraries(mindspore-lite_static ${OBF_LIB_DIR}/libmsdeobfuscator-lite.so)
+-endif()
+-
+ if(MSLITE_ENABLE_KERNEL_EXECUTOR)
+     target_link_libraries(mindspore-lite mindspore_core)
+     target_link_libraries(mindspore-lite_static mindspore_core)
+diff --git a/mindspore/lite/src/executor/CMakeLists.txt b/mindspore/lite/src/executor/CMakeLists.txt
+index deadda8e36..5ccea72dfb 100644
+--- a/mindspore/lite/src/executor/CMakeLists.txt
++++ b/mindspore/lite/src/executor/CMakeLists.txt
+@@ -289,6 +289,3 @@ if(NOT WIN32)
+     target_link_libraries(lite-unified-executor dl)
+ endif()
+ 
+-if(ENABLE_MODEL_OBF)
+-    target_link_libraries(lite-unified-executor ${OBF_LIB_DIR}/libmsdeobfuscator-lite.so)
+-endif()
+diff --git a/mindspore/lite/src/extendrt/delegate/graph_executor/litert/CMakeLists.txt b/mindspore/lite/src/extendrt/delegate/graph_executor/litert/CMakeLists.txt
+index 6dc3a944ef..6b92bfcd74 100644
+--- a/mindspore/lite/src/extendrt/delegate/graph_executor/litert/CMakeLists.txt
++++ b/mindspore/lite/src/extendrt/delegate/graph_executor/litert/CMakeLists.txt
+@@ -301,6 +301,3 @@ if(NOT WIN32)
+     target_link_libraries(msplugin-ge-litert dl)
+ endif()
+ 
+-if(ENABLE_MODEL_OBF)
+-    target_link_libraries(msplugin-ge-litert ${OBF_LIB_DIR}/libmsdeobfuscator-lite.so)
+-endif()
+diff --git a/mindspore/lite/src/litert/lite_model.cc b/mindspore/lite/src/litert/lite_model.cc
+index 13652633b8..b038831b1f 100644
+--- a/mindspore/lite/src/litert/lite_model.cc
++++ b/mindspore/lite/src/litert/lite_model.cc
+@@ -32,6 +32,7 @@
+ #include "src/tensor.h"
+ #include "extendrt/mindir_loader/model_loader.h"
+ #include "src/common/mmap_utils.h"
++#include <dlfcn.h>
+ 
+ namespace mindspore::lite {
+ namespace {
+@@ -69,12 +70,9 @@ void LiteModel::Free() {
+   }
+   inner_all_tensors_.clear();
+ 
+-#ifdef ENABLE_MODEL_OBF
+-  for (auto &prim : graph_.deobf_prims_) {
+-    free(prim);
++  if(this->deobf != nullptr){
++    delete(reinterpret_cast<DeObfProcessor *>(this->deobf));
+   }
+-  graph_.deobf_prims_.resize(0);
+-#endif
+ }
+ 
+ void LiteModel::Destroy() {
+@@ -385,6 +383,12 @@ bool LiteModel::ModelVerify() const {
+ 
+   return NodeVerify() == RET_OK && SubGraphVerify() == RET_OK;
+ }
++//static variable used for deobfuscator
++ObfCreateFunc DeObfRegister::NewDeObfProcessor = DeObfRegister::Fail;
++bool (DeObfProcessor::*DeObfRegister::GetModelDeObfReg)(const void *meta_graph, Model *model);
++void (DeObfProcessor::*DeObfRegister::DeObfuscateReg)(Model *model);
++DeObfRet (DeObfProcessor::*DeObfRegister::CreateDeObfNodeReg)(const schema::Primitive *&src_prim, int i, int schema__version);
++void *DeObfRegister::deobf_handle = nullptr;
+ 
+ int LiteModel::GenerateModelByVersion() {
+   if (this->buf == nullptr) {
+@@ -397,33 +401,37 @@ int LiteModel::GenerateModelByVersion() {
+   }
+   MS_ASSERT(meta_graph != nullptr);
+   int status = RET_ERROR;
+-#ifdef ENABLE_MODEL_OBF
+-  DeObfuscator *model_deobf = nullptr;
+-#endif
++  if(dlopen("libdeobfuscator_lib.z.so", RTLD_NOLOAD) == nullptr) {
++    DeObfRegister::deobf_handle = dlopen("libdeobfuscator_lib.z.so", RTLD_NOW | RTLD_GLOBAL);
++    if(DeObfRegister::deobf_handle == nullptr) {
++      MS_LOG(WARNING) << "deobfuscator ability not apply";
++    }
++  }
++  auto CreateDeObfFunc = reinterpret_cast<ObfCreateFunc>(dlsym(DeObfRegister::deobf_handle, "CreateDeObfFunc"));
++  if (CreateDeObfFunc == nullptr) {
++    MS_LOG(WARNING) << "cannot fetch CreateDeObfFunc";
++  }
++  else {
++    DeObfRegister::RegisterDeObfuscator(CreateDeObfFunc);
++    DeObfRegister::NewDeObfProcessor(*this);
++  }
+   if (schema_version_ == SCHEMA_VERSION::SCHEMA_CUR) {
+-#ifdef ENABLE_MODEL_OBF
+-    if (IsMetaGraphObfuscated<schema::MetaGraph>(*reinterpret_cast<const schema::MetaGraph *>(meta_graph))) {
+-      model_deobf = GetModelDeObfuscator<schema::MetaGraph>(*reinterpret_cast<const schema::MetaGraph *>(meta_graph),
+-                                                            this, this->buf_size_);
+-      this->graph_.model_obfuscated_ = true;
+-      if (model_deobf == nullptr) {
++    if(this->deobf != nullptr) {
++      auto deobf_ptr = reinterpret_cast<DeObfProcessor *>(this->deobf);
++      auto ret = (deobf_ptr->*DeObfRegister::GetModelDeObfReg)(meta_graph, this);
++      if(!ret){
+         return RET_ERROR;
+       }
+     }
+-#endif
+     status = GenerateModel<schema::MetaGraph, schema::CNode>(*reinterpret_cast<const schema::MetaGraph *>(meta_graph));
+   }
+-#ifdef ENABLE_MODEL_OBF
+-  if (this->graph_.model_obfuscated_) {
+-    MS_ASSERT(model_deobf != nullptr);
+-    status = DeObfuscateModel(this, model_deobf);
+-    if (status != RET_OK) {
+-      MS_LOG(ERROR) << "deobfuscate model wrong.";
+-      std::cerr << "deobfuscate model wrong." << std::endl;
+-    }
+-    delete (model_deobf);
++  if(this->deobf != nullptr) {
++    auto deobf_ptr = reinterpret_cast<DeObfProcessor *>(this->deobf);
++    (deobf_ptr->*DeObfRegister::DeObfuscateReg)(this);
++  }
++  if(DeObfRegister::deobf_handle != nullptr) {
++    dlclose(DeObfRegister::deobf_handle);
+   }
+-#endif
+   if (this->graph_.version_ != Version()) {
+     MS_LOG(INFO) << "model version is " << this->graph_.version_ << ", inference version is " << Version()
+                  << " not equal";
+diff --git a/mindspore/lite/src/litert/lite_model.h b/mindspore/lite/src/litert/lite_model.h
+index 635b529a5f..647746a23a 100644
+--- a/mindspore/lite/src/litert/lite_model.h
++++ b/mindspore/lite/src/litert/lite_model.h
+@@ -29,13 +29,11 @@
+ #include "src/litert/schema_tensor_wrapper.h"
+ #include "nnacl/op_base.h"
+ #include "src/common/prim_util.h"
+-#ifdef ENABLE_MODEL_OBF
+-#include "tools/obfuscator/include/deobfuscator.h"
+-#endif
+ #include "include/api/types.h"
+ #ifdef ENABLE_LITE_HELPER
+ #include "src/common/helper/infer_helpers.h"
+ #endif
++#include "include/registry/deobf_processor.h"
+ 
+ namespace mindspore {
+ namespace lite {
+@@ -147,38 +145,23 @@ class MS_API LiteModel : public Model {
+       auto c_node = meta_graph.nodes()->template GetAs<U>(i);
+       MS_CHECK_TRUE_MSG(c_node != nullptr, false, "get as cnode fail!");
+       node->node_type_ = GetPrimitiveType(c_node->primitive(), schema_version_);
+-#ifdef ENABLE_MODEL_OBF
+-      auto src_prim = reinterpret_cast<const schema::Primitive *>(c_node->primitive());
+-      if (src_prim == nullptr) {
+-        delete node;
+-        return false;
+-      }
+-      auto src_prim_type = src_prim->value_type();
+-      unsigned char *dst_prim = nullptr;
+-      if (src_prim_type == schema::PrimitiveType_GenOP) {
+-        if (i >= this->graph_.all_nodes_stat_.size() || i >= this->graph_.all_prims_type_.size()) {
++      if(this->deobf != nullptr){
++        auto src_prim = reinterpret_cast<const schema::Primitive *>(c_node->primitive());
++        auto deobf_ptr = reinterpret_cast<DeObfProcessor *>(this->deobf);
++        DeObfRet ret = (deobf_ptr->*DeObfRegister::CreateDeObfNodeReg)(src_prim,i,schema_version_);
++        if(ret == kDeObfFailed){
+           delete node;
+           return false;
+         }
+-        auto src_node_stat = this->graph_.all_nodes_stat_[i];
+-        auto dst_prim_type = this->graph_.all_prims_type_[i];
+-        auto ret = DeObfuscatePrimitive(src_prim, src_node_stat, &dst_prim, schema::PrimitiveType(dst_prim_type));
+-        if (!ret) {
+-          MS_LOG(ERROR) << "Deobfuscate primitive failed!";
+-          delete node;
+-          return false;
+-        }
+-        if (dst_prim == nullptr) {
++        if(ret == kNoObf){
+           this->graph_.all_nodes_.push_back(node);
+           continue;
+         }
+-        this->graph_.deobf_prims_.push_back(dst_prim);
+-        src_prim = reinterpret_cast<const schema::Primitive *>(flatbuffers::GetRoot<schema::Primitive>(dst_prim));
++        node->primitive_ = const_cast<schema::Primitive *>(src_prim);
++      }
++      else{
++        node->primitive_ = c_node->primitive();
+       }
+-      node->primitive_ = const_cast<schema::Primitive *>(src_prim);
+-#else
+-      node->primitive_ = c_node->primitive();
+-#endif
+       auto status = SetQuantType(meta_graph, c_node, node);
+       if (status == RET_ERROR) {
+         return false;
+diff --git a/mindspore/lite/test/CMakeLists.txt b/mindspore/lite/test/CMakeLists.txt
+index 78dab536e6..3f12ec807b 100644
+--- a/mindspore/lite/test/CMakeLists.txt
++++ b/mindspore/lite/test/CMakeLists.txt
+@@ -240,10 +240,6 @@ if(MSLITE_ENABLE_CONVERTER)
+                                     onnx_parser_mid tf_parser_mid third_party_parser_mid)
+ endif()
+ 
+-if(MSLITE_ENABLE_MODEL_OBF)
+-    target_link_libraries(lite-test ${OBF_LIB_DIR}/libmsdeobfuscator-lite.so)
+-endif()
+-
+ if(MSLITE_ENABLE_KERNEL_EXECUTOR)
+     target_link_libraries(lite-test kernel_executor)
+ endif()
+diff --git a/mindspore/lite/tools/obfuscator/include/deobf_creator.h b/mindspore/lite/tools/obfuscator/include/deobf_creator.h
+new file mode 100644
+index 0000000000..506eccd8d1
+--- /dev/null
++++ b/mindspore/lite/tools/obfuscator/include/deobf_creator.h
+@@ -0,0 +1,7 @@
++#include "include/registry/deobf_processor.h"
++
++namespace mindspore::lite{
++
++    extern "C" void CreateDeObfFunc(Model &model);
++
++}//mindspore::lite
+\ No newline at end of file
