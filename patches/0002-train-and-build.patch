@@ -1,0 +1,730 @@
+diff --git a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn
+index a1e7908e..7bbc3782 100644
+--- a/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn
++++ b/mindspore/ccsrc/plugin/device/cpu/kernel/nnacl/BUILD.gn
+@@ -714,7 +714,17 @@ arm32_assembly_sources = [
+   "assembly/arm32/WinogradTransRight.S",
+ ]
+ 
+-fp16_assembly_sources = [
++arm32_fp16_assembly_sources = [
++  "assembly/arm82_aarch32_fp16/Float16Tofloat32.S",
++  "assembly/arm82_aarch32_fp16/Float32ToFloat16.S",
++  "assembly/arm82_aarch32_fp16/Matmul12x8Fp16.S",
++  "assembly/arm82_aarch32_fp16/MatVecMulFp16.S",
++  "assembly/arm82_aarch32_fp16/TiledC4MatmulFp16.S",
++  "assembly/arm82_aarch32_fp16/WinogradTransLeft.S",
++  "assembly/arm82_aarch32_fp16/WinogradTransRight.S",
++]
++
++arm64_fp16_assembly_sources = [
+   "assembly/fp16/CalculateMinMaxFp16Count8.S",
+   "assembly/fp16/ConvDwFp16Border.S",
+   "assembly/fp16/ConvDwFp16Center.S",
+@@ -839,11 +849,13 @@ nnacl_sources += infer_control_sources
+ 
+ # source files on arm32
+ arm_only_sources = arm32_assembly_sources
++#arm_only_sources += arm32_fp16_assembly_sources
++not_needed(arm32_fp16_assembly_sources)
+ 
+ # source files on arm64
+ arm64_only_sources = fp16_kernel_sources
+ arm64_only_sources += fp16_grad_sources
+-arm64_only_sources += fp16_assembly_sources
++arm64_only_sources += arm64_fp16_assembly_sources
+ arm64_only_sources += arm64_assembly_sources
+ arm64_only_sources += optimizing_assembly_sources
+ arm64_only_sources += arm64_fp32_kernel_sources
+diff --git a/mindspore/lite/BUILD.gn b/mindspore/lite/BUILD.gn
+index 6d83e6f9..9d9c299f 100644
+--- a/mindspore/lite/BUILD.gn
++++ b/mindspore/lite/BUILD.gn
+@@ -74,10 +74,12 @@ import("//build/ohos.gni")
+ ohos_group("mindspore") {
+   deps = [
+     ":mindspore_lib",
++    ":mindspore_train_lib",
+     "mindir:mindir_lib",
+   ]
+ }
+ 
++# Inference library
+ cxx_api_sources = [
+   "src/litert/cxx_api/cell.cc",
+   "src/litert/cxx_api/context.cc",
+@@ -429,7 +431,6 @@ ohos_shared_library("mindspore_lib") {
+   SUPPORT_NNRT = true
+   if (SUPPORT_NNRT) {
+     sources += [
+-      # "mindir/src/mindir_nnrt_lite_graph.cc",
+       "src/litert/delegate/nnrt/checker/primitive_check.cc",
+       "src/litert/delegate/nnrt/nnrt_delegate.cc",
+       "src/litert/delegate/nnrt/nnrt_model_kernel.cc",
+@@ -444,8 +445,9 @@ ohos_shared_library("mindspore_lib") {
+     external_deps += [ "neural_network_runtime:nnrt_target" ]
+     deps += [ "mindir:mindir_lib" ]
+     defines += [ "SUPPORT_NNRT" ]
+-    defines += [ "MSLITE_ENABLE_EXPERIMENTAL_KERNEL" ]
+   }
++  defines += [ "MSLITE_ENABLE_EXPERIMENTAL_KERNEL" ]
++  defines += [ "SUPPORT_TRAIN" ]
+   cflags_cc = [
+     "-Wno-ignored-qualifiers",
+     "-Wunused-private-field",
+@@ -458,6 +460,224 @@ ohos_shared_library("mindspore_lib") {
+   subsystem_name = "thirdparty"
+ }
+ 
++# Train library
++expression_cxx_api_sources = [
++  "src/litert/cxx_api/expression/net.cc",
++  "src/litert/cxx_api/expression/net_impl.cc",
++  "src/litert/cxx_api/expression/node_impl.cc",
++]
++
++expression_op_sources = [
++  "src/expression/ops/activation.cc",
++  "src/expression/ops/adam.cc",
++  "src/expression/ops/addn.cc",
++  "src/expression/ops/arithmetic.cc",
++  "src/expression/ops/arithmetic_self.cc",
++  "src/expression/ops/assign.cc",
++  "src/expression/ops/batchnorm.cc",
++  "src/expression/ops/biasadd.cc",
++  "src/expression/ops/conv.cc",
++  "src/expression/ops/dense.cc",
++  "src/expression/ops/depend.cc",
++  "src/expression/ops/dropout.cc",
++  "src/expression/ops/flatten.cc",
++  "src/expression/ops/pooling.cc",
++  "src/expression/ops/reduce.cc",
++  "src/expression/ops/reshape.cc",
++  "src/expression/ops/softmax.cc",
++  "src/expression/ops/softmaxCE.cc",
++  "src/expression/ops/tile.cc",
++  "src/expression/ops/transpose.cc",
++]
++
++all_expression_sources = [
++  "src/expression/export.cc",
++  "src/expression/expr.cc",
++  "src/expression/import.cc",
++  "src/expression/net.cc",
++  "src/expression/node.cc",
++  "src/expression/ops.cc",
++  "src/expression/ops_utils.cc",
++  "src/expression/param.cc",
++  "src/expression/sequential.cc",
++]
++
++all_expression_sources += expression_cxx_api_sources
++all_expression_sources += expression_op_sources
++
++all_train_sources = [
++  # ${API_TRAIN_SRC} is empty.
++  # ${TRAIN_SRC_WITH_MD} is empty.
++  "src/common/quant_utils.cc",
++  "src/litert/cxx_api/metrics/accuracy.cc",
++  "src/litert/cxx_api/train/model_build.cc",
++  "src/litert/cxx_api/train/model_build_impl.cc",
++  "src/litert/cxx_api/train/converters.cc",
++  "src/litert/cxx_api/train/train_support.cc",
++  "src/train/train_populate_parameter.cc",
++  "src/train/train_session.cc",
++  "src/train/graph_fusion.cc",
++  "src/train/graph_dropout.cc",
++  "src/train/transfer_session.cc",
++  "src/train/train_utils.cc",
++  "src/train/loss_monitor.cc",
++  "src/train/lr_scheduler.cc",
++  "src/train/accuracy_metrics.cc",
++#  "src/train/accuracy_monitor.cc", # depends on minddata header, not compiled
++  "src/train/classification_train_accuracy_monitor.cc",
++  "src/train/train_export.cc",
++  "src/train/opt_allocator.cc",
++  "src/train/optimizer/common/fusion_utils.cc",
++  "src/train/optimizer/fusion/matmul_activation_fusion_pass.cc",
++  "src/train/optimizer/fusion/reshape_gather_reshape_fusion_pass.cc",
++  "src/train/optimizer/fusion/gru_fusion_pass.cc",
++  "src/common/storage.cc",
++  "tools/converter/optimizer.cc",
++  "tools/converter/legacy_optimizer/fusion/fusion_pass.cc",
++  "tools/converter/legacy_optimizer/fusion/fusion_pattern.cc",
++  "tools/common/meta_graph_utils.cc",
++  "tools/common/statistic_utils.cc",
++  "tools/converter/legacy_optimizer/fusion/matmul_biasadd_fusion_pass.cc",
++  "tools/converter/legacy_optimizer/graph/dropout_node_remove_pass.cc",
++  "tools/converter/legacy_optimizer/graph/isolated_node_remove_pass.cc",
++  "tools/converter/legacy_optimizer/graph/subgraph_node_pass.cc",
++]
++
++all_train_sources += all_expression_sources
++
++fp16_train_kernel_sources = [
++  "src/litert/kernel/cpu/fp16_grad/activation_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/arithmetic_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/arithmetic_fp16_self_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/bias_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/bn_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/convolution_fp16_grad_filter.cc",
++  "src/litert/kernel/cpu/fp16_grad/convolution_fp16_grad_input.cc",
++  "src/litert/kernel/cpu/fp16_grad/dropout_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/layernorm_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/neg_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/pooling_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/resize_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/strided_slice_fp16_grad.cc",
++  "src/litert/kernel/cpu/fp16_grad/unsorted_segment_sum_fp16.cc",
++]
++
++fp32_train_kernel_sources = [
++  "src/litert/kernel/cpu/fp32_grad/activation_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/adam.cc",
++  "src/litert/kernel/cpu/fp32_grad/adam_weight_decay.cc",
++  "src/litert/kernel/cpu/fp32_grad/apply_momentum.cc",
++  "src/litert/kernel/cpu/fp32_grad/arithmetic_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/arithmetic_self_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/assign.cc",
++  "src/litert/kernel/cpu/fp32_grad/bias_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/bn_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/convolution.cc",
++  "src/litert/kernel/cpu/fp32_grad/convolution_grad_filter.cc",
++  "src/litert/kernel/cpu/fp32_grad/convolution_grad_input.cc",
++  "src/litert/kernel/cpu/fp32_grad/deconvolution_grad_filter.cc",
++  "src/litert/kernel/cpu/fp32_grad/dropout.cc",
++  "src/litert/kernel/cpu/fp32_grad/dropout_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/layernorm_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/lstm_grad_data_fp32.cc",
++  "src/litert/kernel/cpu/fp32_grad/lstm_grad_fp32.cc",
++  "src/litert/kernel/cpu/fp32_grad/lstm_grad_weight_fp32.cc",
++  "src/litert/kernel/cpu/fp32_grad/neg_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/nllloss_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/pooling_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/power_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/resize_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/sgd.cc",
++  "src/litert/kernel/cpu/fp32_grad/sigmoid_cross_entropy_with_logits.cc",
++  "src/litert/kernel/cpu/fp32_grad/sigmoid_cross_entropy_with_logits_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/smooth_l1_loss.cc",
++  "src/litert/kernel/cpu/fp32_grad/smooth_l1_loss_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/softmax_cross_entropy_with_logits.cc",
++  "src/litert/kernel/cpu/fp32_grad/softmax_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/sparse_softmax_cross_entropy_with_logits.cc",
++  "src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc",
++  "src/litert/kernel/cpu/fp32_grad/unsorted_segment_sum.cc",
++  "src/litert/kernel/cpu/fp32_grad/binary_cross_entropy.cc",
++  "src/litert/kernel/cpu/fp32_grad/binary_cross_entropy_grad.cc",
++]
++
++#all_train_sources += fp16_train_kernel_sources
++not_needed(fp16_train_kernel_sources)
++all_train_sources += fp32_train_kernel_sources
++
++ohos_shared_library("mindspore_train_lib") {
++  deps = [
++    ":mindspore_lib",
++  ]
++
++  sources = all_train_sources
++
++  include_dirs = [
++    "//base/hiviewdfx/hilog/interfaces/native/innerkits/include",
++    "//third_party/flatbuffers/include",
++    "./",
++    "../",
++    "../../",
++    "../core",
++    "src",
++    "src/c_api/",
++    "../ccsrc/plugin/device/cpu/kernel/",
++    "../core/mindrt/src/",
++    "../core/mindrt/include/",
++    "../../third_party/",
++    "./schema/",
++    "../ccsrc/",
++  ]
++
++  defines = [
++    "ENABLE_MINDRT",
++    "MS_COMPILE_OHOS",
++    "PRIMITIVE_WRITEABLE",
++    "VERSION_STR=\"2.1.0\"",
++  ]
++
++  if (target_cpu == "arm") {
++    defines += [
++      "ENABLE_ARM",
++      "ENABLE_ARM32",
++      "ENABLE_NEON",
++    ]
++  } else if (target_cpu == "arm64") {
++    defines += [
++      "ENABLE_ARM",
++      "ENABLE_ARM64",
++      "ENABLE_NEON",
++      "ENABLE_FP16",
++      "USE_OPENCL_WRAPPER",
++      "MS_OPENCL_PROFILE=false",
++      "CL_TARGET_OPENCL_VERSION=200",
++      "CL_HPP_TARGET_OPENCL_VERSION=120",
++      "CL_HPP_MINIMUM_OPENCL_VERSION=120",
++    ]
++  }
++  configs = [
++    ":mindspore_api",
++    ":disable_android",
++    ":train_kernel_option",
++  ]
++
++  remove_configs = [ "//build/config/compiler:no_rtti" ]
++  external_deps = [ "hilog:libhilog" ]
++  output_name = "libmindspore-lite-train"
++  output_extension = "so"
++  defines += [ "SUPPORT_TRAIN" ]
++  cflags_cc = [
++    "-Wno-ignored-qualifiers",
++    "-Wunused-private-field",
++    "-Wno-unused-private-field",
++    "-Wno-inconsistent-missing-override",
++    "-Wno-macro-redefined",
++    "-Wno-constant-conversion",
++  ]
++  part_name = "mindspore"
++}
++
++# Build configurations
+ config("opencl_option") {
+   cflags_cc = [ "-Wno-missing-braces" ]
+ }
+@@ -482,3 +702,7 @@ config("disable_android") {
+ config("secure_option") {
+   cflags = [ "-fstack-protector-all" ]
+ }
++
++config("train_kernel_option") {
++  cflags_cc = [ "-fno-finite-math-only" ]
++}
+diff --git a/mindspore/lite/include/registry/opencl_runtime_wrapper.h b/mindspore/lite/include/registry/opencl_runtime_wrapper.h
+index fb647d37..b55554e4 100644
+--- a/mindspore/lite/include/registry/opencl_runtime_wrapper.h
++++ b/mindspore/lite/include/registry/opencl_runtime_wrapper.h
+@@ -1,5 +1,5 @@
+ /**
+- * Copyright 2021 Huawei Technologies Co., Ltd
++ * Copyright 2021-2023 Huawei Technologies Co., Ltd
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+diff --git a/mindspore/lite/src/litert/kernel/cpu/BUILD.gn b/mindspore/lite/src/litert/kernel/cpu/BUILD.gn
+index b34e0427..48308425 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/BUILD.gn
++++ b/mindspore/lite/src/litert/kernel/cpu/BUILD.gn
+@@ -112,6 +112,7 @@ cpu_kernel_sources = [
+     "fp32/uniform_real_fp32.cc",
+     "fp32/unstack_fp32.cc",
+     "fp32/where_fp32.cc",
++    "fp32/oneslike_fp32.cc",
+     "fp32/online_fusion/cast_gather_reduce_fp32.cc",
+     "fp32/online_fusion/reduce_concat_fp32.cc",
+     "fp32/online_fusion/split_reduce_concat_fp32.cc",
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32/oneslike_fp32.cc b/mindspore/lite/src/litert/kernel/cpu/fp32/oneslike_fp32.cc
+new file mode 100644
+index 00000000..b4c3bf7e
+--- /dev/null
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32/oneslike_fp32.cc
+@@ -0,0 +1,51 @@
++/**
++ * Copyright 2022 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "src/litert/kernel/cpu/fp32/oneslike_fp32.h"
++#include "schema/model_generated.h"
++#include "src/litert/kernel_registry.h"
++#include "include/errorcode.h"
++
++using mindspore::kernel::KERNEL_ARCH;
++using mindspore::lite::KernelRegistrar;
++using mindspore::lite::RET_ERROR;
++using mindspore::lite::RET_OK;
++using mindspore::schema::PrimitiveType_OnesLike;
++
++namespace mindspore::kernel {
++int OnesLikeCPUKernel::Prepare() {
++  CHECK_LESS_RETURN(in_tensors_.size(), 1);
++  CHECK_LESS_RETURN(out_tensors_.size(), 1);
++  return RET_OK;
++}
++
++int OnesLikeCPUKernel::Run() {
++  auto output = out_tensors_[0];
++  CHECK_NULL_RETURN(output);
++  if (output->data_type() == kNumberTypeInt32) {
++    ApproximateOnesLike(static_cast<int *>(output->data()), output->ElementsNum());
++  } else if (output->data_type() == kNumberTypeFloat32) {
++    ApproximateOnesLike(static_cast<float *>(output->data()), output->ElementsNum());
++  }
++  return RET_OK;
++}
++
++REG_KERNEL(kCPU, kNumberTypeInt32, PrimitiveType_OnesLike, LiteKernelCreator<OnesLikeCPUKernel>)
++REG_KERNEL(kCPU, kNumberTypeFloat32, PrimitiveType_OnesLike, LiteKernelCreator<OnesLikeCPUKernel>)
++#ifdef ENABLE_FP16
++REG_KERNEL(kCPU, kNumberTypeFloat16, PrimitiveType_OnesLike, LiteKernelCreator<OnesLikeCPUKernel>)
++#endif
++}  // namespace mindspore::kernel
+\ No newline at end of file
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32/oneslike_fp32.h b/mindspore/lite/src/litert/kernel/cpu/fp32/oneslike_fp32.h
+new file mode 100644
+index 00000000..f90aebed
+--- /dev/null
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32/oneslike_fp32.h
+@@ -0,0 +1,46 @@
++/**
++ * Copyright 2022 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#ifndef MINDSPORE_LITE_SRC_RUNTIME_KERNEL_CPU_FP32_ONESLike_FP32_H_
++#define MINDSPORE_LITE_SRC_RUNTIME_KERNEL_CPU_FP32_ONESLike_FP32_H_
++
++#include <vector>
++#include "src/litert/lite_kernel.h"
++
++namespace mindspore::kernel {
++class OnesLikeCPUKernel : public LiteKernel {
++ public:
++  OnesLikeCPUKernel(OpParameter *parameter, const std::vector<lite::Tensor *> &inputs,
++                    const std::vector<lite::Tensor *> &outputs, const lite::InnerContext *ctx)
++      : LiteKernel(parameter, inputs, outputs, ctx) {}
++
++  ~OnesLikeCPUKernel() = default;
++
++  int Prepare() override;
++  int ReSize() override { return lite::RET_OK; }
++  int Run() override;
++
++ private:
++  template <typename T>
++  void ApproximateOnesLike(T *output, int data_size) {
++    for (int i = 0; i < data_size; ++i) {
++      output[i] = 1;
++    }
++    return;
++  }
++};
++}  // namespace mindspore::kernel
++
++#endif  // MINDSPORE_LITE_SRC_RUNTIME_KERNEL_CPU_FP32_ONESLike_FP32_H_
+\ No newline at end of file
+diff --git a/mindspore/lite/src/litert/lite_model.h b/mindspore/lite/src/litert/lite_model.h
+index 2b5422fa..635b529a 100644
+--- a/mindspore/lite/src/litert/lite_model.h
++++ b/mindspore/lite/src/litert/lite_model.h
+@@ -1,5 +1,5 @@
+ /**
+- * Copyright 2020 Huawei Technologies Co., Ltd
++ * Copyright 2020-2023 Huawei Technologies Co., Ltd
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+diff --git a/mindspore/lite/src/litert/lite_session.cc b/mindspore/lite/src/litert/lite_session.cc
+index ded4d761..8f54879e 100644
+--- a/mindspore/lite/src/litert/lite_session.cc
++++ b/mindspore/lite/src/litert/lite_session.cc
+@@ -2022,6 +2022,7 @@ int lite::LiteSession::LoadModelAndCompileByPath(const std::string &model_path,
+     delete model;
+     return RET_ERROR;
+   }
++  model->Free();
+   set_model(model);
+   return RET_OK;
+ }
+diff --git a/mindspore/lite/src/litert/weight_decoder.h b/mindspore/lite/src/litert/weight_decoder.h
+index 9afaca55..9fbcefde 100644
+--- a/mindspore/lite/src/litert/weight_decoder.h
++++ b/mindspore/lite/src/litert/weight_decoder.h
+@@ -1,5 +1,5 @@
+ /**
+- * Copyright 2020-2022 Huawei Technologies Co., Ltd
++ * Copyright 2020-2023 Huawei Technologies Co., Ltd
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+diff --git a/mindspore/lite/src/tensor.h b/mindspore/lite/src/tensor.h
+index 838892cf..f2eb4d1a 100644
+--- a/mindspore/lite/src/tensor.h
++++ b/mindspore/lite/src/tensor.h
+@@ -69,7 +69,7 @@ enum CompressType {
+   kFSEInfer = 6
+ };
+ 
+-class Tensor {
++class MS_API Tensor {
+  public:
+   Tensor() { tensor_c_ = {false, kTypeUnknown, NHWC, VarTensor, nullptr, 0}; }
+ 
+diff --git a/mindspore/lite/src/tensorlist.h b/mindspore/lite/src/tensorlist.h
+index bdfdda02..6925cc95 100644
+--- a/mindspore/lite/src/tensorlist.h
++++ b/mindspore/lite/src/tensorlist.h
+@@ -56,7 +56,7 @@ namespace mindspore::lite {
+  *
+  *  See the code for other constructors.
+  */
+-class TensorList : public Tensor {
++class MS_API TensorList : public Tensor {
+  public:
+   TensorList() { tensor_list_c_ = {false, kObjectTypeTensorType, DEFAULT_FORMAT, 0, kTypeUnknown, -1, nullptr, 0, 0}; }
+ 
+diff --git a/mindspore/lite/src/train/train_session.cc b/mindspore/lite/src/train/train_session.cc
+index ef3c71f3..b581b389 100644
+--- a/mindspore/lite/src/train/train_session.cc
++++ b/mindspore/lite/src/train/train_session.cc
+@@ -248,8 +248,8 @@ static int ReshapeWeightTensor(Tensor *orig_tensor, lite::Tensor *new_tensor) {
+ 
+ int TrainSession::UpdateWeights(std::vector<lite::Tensor *> modify_tensors) {
+   unsigned int num_of_found_tensors = 0;
+-  for (auto tensor : tensors_) {
+-    for (auto modify : modify_tensors) {
++  for (auto modify : modify_tensors) {
++    for (auto tensor : tensors_) {
+       if (modify == nullptr) {
+         MS_LOG(ERROR) << "Tensor is nullptr";
+         return RET_PARAM_INVALID;
+diff --git a/mindspore/lite/tools/benchmark_train/net_train.h b/mindspore/lite/tools/benchmark_train/net_train.h
+index 43853e99..67e58a04 100644
+--- a/mindspore/lite/tools/benchmark_train/net_train.h
++++ b/mindspore/lite/tools/benchmark_train/net_train.h
+@@ -1,5 +1,5 @@
+ /**
+- * Copyright 2020 Huawei Technologies Co., Ltd
++ * Copyright 2020-2023 Huawei Technologies Co., Ltd
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+diff --git a/mindspore/lite/tools/converter/converter_metagraph.cc b/mindspore/lite/tools/converter/converter_metagraph.cc
+index 6ffff71c..46a66128 100644
+--- a/mindspore/lite/tools/converter/converter_metagraph.cc
++++ b/mindspore/lite/tools/converter/converter_metagraph.cc
+@@ -104,12 +104,14 @@ schema::MetaGraphT *ConverterToMetaGraph::Build(const std::shared_ptr<ConverterP
+     return nullptr;
+   }
+ 
+-  // output name will be modified by Transform
+-  status = UpdateMetaGraphOutputName(meta_graph, output_tensor_name);
+-  if (status != RET_OK) {
+-    MS_LOG(ERROR) << "UpdateGraphOutputName failed.";
+-    delete meta_graph;
+-    return nullptr;
++  if (!param->train_model) {
++    // output name will be modified by Transform
++    status = UpdateMetaGraphOutputName(meta_graph, output_tensor_name);
++    if (status != RET_OK) {
++      MS_LOG(ERROR) << "UpdateGraphOutputName failed.";
++      delete meta_graph;
++      return nullptr;
++    }
+   }
+ 
+   return meta_graph;
+diff --git a/mindspore/lite/tools/converter/graphdef_transform.cc b/mindspore/lite/tools/converter/graphdef_transform.cc
+index d571b532..90b744e5 100644
+--- a/mindspore/lite/tools/converter/graphdef_transform.cc
++++ b/mindspore/lite/tools/converter/graphdef_transform.cc
+@@ -26,6 +26,7 @@
+ #include "tools/converter/legacy_optimizer/graph/dropout_node_remove_pass.h"
+ #include "tools/converter/legacy_optimizer/graph/topological_sort_pass.h"
+ #include "tools/converter/legacy_optimizer/graph/tensor_name_pass.h"
++#include "tools/converter/legacy_optimizer/graph/node_name_pass.h"
+ #include "tools/converter/legacy_optimizer/graph/set_unused_quant_param_to_default_pass.h"
+ #include "tools/converter/legacy_optimizer/graph/convert_fp32_to_fp16_pass.h"
+ #include "tools/converter/legacy_optimizer/graph/subgraph_node_pass.h"
+@@ -136,6 +137,9 @@ int GraphDefTransform::Transform(const std::shared_ptr<ConverterPara> &param) {
+     Optimizer forming_model_optimizer;
+     forming_model_optimizer.AddPass(new (std::nothrow) InferShapePass(param->fmk_type));
+     forming_model_optimizer.AddPass(new (std::nothrow) SetUnusedQuantParamToDefaultPass(param));
++    if (param->train_model) {
++      forming_model_optimizer.AddPass(new (std::nothrow) NodeNamePass());
++    }
+     forming_model_optimizer.AddPass(new (std::nothrow) TensorNamePass());
+     forming_model_optimizer.AddPass(new (std::nothrow) ConvertFP32ToFP16Pass(param->weight_fp16));
+     status = forming_model_optimizer.Run(graph_defT_);
+diff --git a/mindspore/lite/tools/converter/legacy_optimizer/graph/CMakeLists.txt b/mindspore/lite/tools/converter/legacy_optimizer/graph/CMakeLists.txt
+index 9b16f4f8..30bccbde 100755
+--- a/mindspore/lite/tools/converter/legacy_optimizer/graph/CMakeLists.txt
++++ b/mindspore/lite/tools/converter/legacy_optimizer/graph/CMakeLists.txt
+@@ -9,6 +9,7 @@ file(GLOB GRAPH_PASS
+         ${CMAKE_CURRENT_SOURCE_DIR}/convert_fp32_to_fp16_pass.cc
+         ${CMAKE_CURRENT_SOURCE_DIR}/set_unused_quant_param_to_default_pass.cc
+         ${CMAKE_CURRENT_SOURCE_DIR}/tensor_name_pass.cc
++        ${CMAKE_CURRENT_SOURCE_DIR}/node_name_pass.cc
+         ${CMAKE_CURRENT_SOURCE_DIR}/subgraph_node_pass.cc
+         ${CMAKE_CURRENT_SOURCE_DIR}/subgraph_tensor_pass.cc
+         ${CMAKE_CURRENT_SOURCE_DIR}/const_node_reorder_pass.cc
+diff --git a/mindspore/lite/tools/converter/legacy_optimizer/graph/node_name_pass.cc b/mindspore/lite/tools/converter/legacy_optimizer/graph/node_name_pass.cc
+new file mode 100644
+index 00000000..712927b0
+--- /dev/null
++++ b/mindspore/lite/tools/converter/legacy_optimizer/graph/node_name_pass.cc
+@@ -0,0 +1,96 @@
++/**
++ * Copyright 2022 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "tools/converter/legacy_optimizer/graph/node_name_pass.h"
++#include <string>
++#include <vector>
++#include "tools/converter/converter_context.h"
++
++namespace mindspore::lite {
++std::string CutShortName(const std::string &fullname, const std::string &delimiter) {
++  size_t end_pos = fullname.find_last_of(delimiter);
++  std::string name = "";
++  if (end_pos != std::string::npos) {
++    name = fullname.substr(end_pos + 1);
++  }
++  if ((fullname.find("op") != std::string::npos) && (name.find("op") == std::string::npos) &&
++      (end_pos != std::string::npos)) {
++    size_t pos = fullname.rfind(delimiter, end_pos - 1);
++    if (pos != std::string::npos) {
++      name.insert(0, fullname.substr(pos + 1, end_pos - pos));
++    } else {
++      name.insert(0, fullname.substr(0, end_pos + 1));
++    }
++  }
++
++  const std::vector<std::string> loss_names = {"loss_fct", "_loss_fn", "SigmoidCrossEntropy"};
++  for (auto &s : loss_names) {
++    if (fullname.find(s) != std::string::npos) {
++      name.insert(0, s + "/");
++      break;
++    }
++  }
++
++  if (fullname.find("Gradients") != std::string::npos) {
++    size_t pos = fullname.find(delimiter);
++    if (pos != std::string::npos) {
++      name.insert(0, fullname.substr(0, pos + 1));
++    }
++  }
++  return name;
++}
++
++STATUS NodeNamePass::Run(schema::MetaGraphT *graph) {
++  if (graph == nullptr) {
++    MS_LOG(ERROR) << "graph is nullptr";
++    return RET_NULL_PTR;
++  }
++
++  std::string delimiter = "/";
++  for (auto &node : graph->nodes) {
++    if (node == nullptr || node->primitive == nullptr) {
++      MS_LOG(ERROR) << "node or node->primitive is nullptr";
++      return RET_NULL_PTR;
++    }
++    std::string node_name = CutShortName(node->name, delimiter);
++    node->name = node_name != "" ? node_name : node->name;
++
++    for (int i = 0; i < static_cast<int>(node->inputIndex.size()); i++) {
++      auto tensor_id = node->inputIndex.at(i);
++      auto &tensor = graph->allTensors.at(tensor_id);
++      if (tensor->name.empty()) {
++        MS_LOG(DEBUG) << "input tensor (id = " << tensor_id << ") name is null";
++        tensor->name = node->name + "/input-" + std::to_string(i);
++      } else {
++        std::string in_tensor_name = CutShortName(tensor->name, delimiter);
++        tensor->name = in_tensor_name != "" ? in_tensor_name : tensor->name;
++      }
++    }
++
++    for (int i = 0; i < static_cast<int>(node->outputIndex.size()); i++) {
++      auto tensor_id = node->outputIndex.at(i);
++      auto &tensor = graph->allTensors.at(tensor_id);
++      if (tensor->name.empty()) {
++        tensor->name = node->name + "/output-" + std::to_string(i);
++      } else {
++        std::string out_tensor_name = CutShortName(tensor->name, delimiter);
++        tensor->name = out_tensor_name != "" ? out_tensor_name : tensor->name;
++      }
++    }
++  }
++  return RET_OK;
++}
++}  // namespace mindspore::lite
+\ No newline at end of file
+diff --git a/mindspore/lite/tools/converter/legacy_optimizer/graph/node_name_pass.h b/mindspore/lite/tools/converter/legacy_optimizer/graph/node_name_pass.h
+new file mode 100644
+index 00000000..4e58e5c7
+--- /dev/null
++++ b/mindspore/lite/tools/converter/legacy_optimizer/graph/node_name_pass.h
+@@ -0,0 +1,35 @@
++/**
++ * Copyright 2022 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#ifndef MINDSPORE_LITE_TOOLS_CONVERTER_LEGACY_OPTIMIZER_GRAPH_NODE_NAME_PASS_H_
++#define MINDSPORE_LITE_TOOLS_CONVERTER_LEGACY_OPTIMIZER_GRAPH_NODE_NAME_PASS_H_
++
++#include <memory>
++#include "tools/converter/optimizer.h"
++#include "tools/common/graph_util.h"
++
++namespace mindspore {
++namespace lite {
++class NodeNamePass : public GraphPass {
++ public:
++  NodeNamePass() {}
++
++  ~NodeNamePass() override = default;
++
++  STATUS Run(schema::MetaGraphT *graph) override;
++};
++}  // namespace lite
++}  // namespace mindspore
++#endif  // MINDSPORE_LITE_TOOLS_CONVERTER_LEGACY_OPTIMIZER_GRAPH_NODE_NAME_PASS_H_

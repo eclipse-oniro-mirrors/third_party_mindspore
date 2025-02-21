@@ -1,0 +1,315 @@
+From 01d726ef909ea48f15e89bcc40d84b49f5acac97 Mon Sep 17 00:00:00 2001
+From: zhangyanhui <zhangyanhui17@huawei.com>
+Date: Mon, 29 Jan 2024 11:14:45 +0800
+Subject: [PATCH] auto apply 0008
+
+---
+ mindspore/lite/BUILD.gn                       |   5 +-
+ mindspore/lite/mindir/BUILD.gn                |  12 +-
+ mindspore/lite/src/litert/c_api/context_c.cc  |   4 +
+ .../cpu/fp32_grad/strided_slice_grad.cc       | 124 ++++++++++++++----
+ .../kernel/cpu/fp32_grad/strided_slice_grad.h |   5 +
+ mindspore/lite/src/litert/lite_model.cc       |   4 +-
+ 6 files changed, 123 insertions(+), 31 deletions(-)
+
+diff --git a/mindspore/lite/BUILD.gn b/mindspore/lite/BUILD.gn
+index d7fe4f55..4a83f498 100644
+--- a/mindspore/lite/BUILD.gn
++++ b/mindspore/lite/BUILD.gn
+@@ -366,6 +366,7 @@ ohos_shared_library("mindspore_lib") {
+     "../core/mindrt/:mindrt_obj",
+     "src/litert/kernel/cpu/:cpu_kernel_obj",
+     "src/common/:lite_common_mid_obj",
++    "//third_party/flatbuffers:flatbuffers_install_action",
+   ]
+ 
+   sources = all_sources
+@@ -473,7 +474,8 @@ ohos_shared_library("mindspore_lib") {
+ ohos_shared_library("mindspore_ndk") {
+   deps = [
+     ":mindspore_lib",
+-    ":mindspore_train_lib"
++    ":mindspore_train_lib",
++    "//third_party/flatbuffers:flatbuffers_install_action",
+   ]
+ 
+   sources = c_api_sources
+@@ -636,6 +638,7 @@ all_train_sources += fp32_train_kernel_sources
+ ohos_shared_library("mindspore_train_lib") {
+   deps = [
+     ":mindspore_lib",
++    "//third_party/flatbuffers:flatbuffers_install_action",
+   ]
+ 
+   sources = all_train_sources
+diff --git a/mindspore/lite/mindir/BUILD.gn b/mindspore/lite/mindir/BUILD.gn
+index b1435ef7..4c489f34 100644
+--- a/mindspore/lite/mindir/BUILD.gn
++++ b/mindspore/lite/mindir/BUILD.gn
+@@ -19,11 +19,17 @@ import("//build/ohos.gni")
+ #     "tests:mindir_test",
+ #   ]
+ # }
++
++config("mindir_config") {
++  include_dirs = [
++    "include",
++  ]
++}
++
+ ohos_shared_library("mindir_lib") {
+   include_dirs = [
+     "../",
+     "../../core",
+-    "include",
+     "inner_headers",
+     "//third_party/flatbuffers/include",
+     "//third_party/bounds_checking_function/include",
+@@ -49,10 +55,14 @@ ohos_shared_library("mindir_lib") {
+     "bounds_checking_function:libsec_shared",
+     "drivers_interface_nnrt:nnrt_idl_headers"
+   ]
++  deps = [
++    "//third_party/flatbuffers:flatbuffers_install_action",
++  ]
+   configs = [
+     "../:disable_android",
+     "../:secure_option",
+   ]
++  public_configs = [ ":mindir_config" ]
+   defines = [ "MS_COMPILE_OHOS" ]
+   output_name = "mindir"
+   innerapi_tags = [ "platformsdk_indirect" ]
+diff --git a/mindspore/lite/src/litert/c_api/context_c.cc b/mindspore/lite/src/litert/c_api/context_c.cc
+index c5f825aa..bde0460c 100644
+--- a/mindspore/lite/src/litert/c_api/context_c.cc
++++ b/mindspore/lite/src/litert/c_api/context_c.cc
+@@ -324,6 +324,10 @@ NNRTDeviceDesc *OH_AI_GetAllNNRTDeviceDescs(size_t *num) {
+ 
+     const char *name = nullptr;
+     (void)OH_NNDevice_GetName(all_device_ids[i], &name);
++    if (name == nullptr) {
++      MS_LOG(ERROR) << "OH_NNDevice_GetName error.";
++      return nullptr;
++    }
+     desc[i].device_name[127] = '\0';
+     strncpy(desc[i].device_name, name, 127);
+   }
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc
+index 91094658..91bbd39a 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc
+@@ -18,6 +18,7 @@
+ #include "src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h"
+ #include <vector>
+ #include <algorithm>
++#include <utility>
+ #include "schema/model_generated.h"
+ #include "src/litert/kernel_registry.h"
+ #include "nnacl/fp32_grad/strided_slice_grad.h"
+@@ -55,7 +56,6 @@ void StridedSliceGradCPUKernel::FillEmptyDims() {
+   int32_t begins[DIMENSION_8D];
+   int32_t ends[DIMENSION_8D];
+   int32_t strides[DIMENSION_8D];
+-  int32_t input_shape[DIMENSION_8D];
+   int32_t i;
+ 
+   // invert the order of the dimension and fill defout outsize actual ranae
+@@ -63,19 +63,10 @@ void StridedSliceGradCPUKernel::FillEmptyDims() {
+     begins[i] = param_->begins_[i];
+     ends[i] = param_->ends_[i];
+     strides[i] = param_->strides_[i];
+-    input_shape[i] = param_->in_shape_[i];
+   }
+ 
+-  int32_t real_index = param_->in_shape_length_ - 1;
+-  for (i = DIMENSION_8D - 1; i >= 0; --i) {
+-    if (real_index >= 0) {
+-      param_->in_shape_[i] = input_shape[real_index--];
+-    } else {
+-      param_->in_shape_[i] = 1;
+-    }
+-  }
+   int out_shape_length = in_tensors_.at(1)->shape().at(0);
+-  real_index = out_shape_length - 1;
++  int32_t real_index = out_shape_length - 1;
+   for (i = DIMENSION_8D - 1; i >= 0; --i) {
+     if (real_index >= 0) {
+       param_->begins_[i] = begins[real_index];
+@@ -87,17 +78,15 @@ void StridedSliceGradCPUKernel::FillEmptyDims() {
+       param_->strides_[i] = 1;
+     }
+   }
+-  param_->num_axes_ = DIMENSION_8D;
+-  param_->in_shape_length_ = DIMENSION_8D;
+-
+   for (i = 0; i < DIMENSION_8D; ++i) {
+-    if (param_->begins_[i] < 0) {
+-      param_->begins_[i] += param_->in_shape_[i];
+-    }
+-    if (param_->ends_[i] < 0) {
+-      param_->ends_[i] += param_->in_shape_[i];
++    int ax = param_->ends_[i] - param_->begins_[i];
++    if (ax < 0) {
++      ax = 0;
+     }
++    param_->in_shape_[i] = ax;
+   }
++  param_->num_axes_ = DIMENSION_8D;
++  param_->in_shape_length_ = DIMENSION_8D;
+ }
+ 
+ void StridedSliceGradCPUKernel::FillOutputDim() {
+@@ -115,6 +104,24 @@ void StridedSliceGradCPUKernel::FillOutputDim() {
+ int StridedSliceGradCPUKernel::ReSize() {
+   FillEmptyDims();
+   FillOutputDim();
++  for (int32_t i = 0; i < DIMENSION_8D; ++i) {
++    if (param_->ends_[i] == 0 && param_->begins_[i] < 0) {
++      param_->ends_[i] += output_shape_[i];
++    }
++    if (param_->ends_[i] < 0) {
++      param_->ends_[i] = (param_->ends_[i] + output_shape_[i]) < 0 ? 0 : param_->ends_[i] + output_shape_[i];
++    }
++    if (param_->ends_[i] > output_shape_[i]) {
++      param_->ends_[i] = output_shape_[i];
++    }
++    if (param_->begins_[i] < 0) {
++      auto k = param_->begins_[i] + output_shape_[i];
++      param_->begins_[i] = k < 0 ? 0 : k;
++    }
++    if (param_->begins_[i] > output_shape_[i]) {
++      param_->begins_[i] = output_shape_[i];
++    }
++  }
+   return RET_OK;
+ }
+ 
+@@ -142,20 +149,81 @@ int StridedSliceGradCPUKernel::DoExecute(int task_id) {
+   auto input = in_tensors_.at(0);
+   auto output = out_tensors_.at(0);
+ 
+-  int *po = output_shape_.data();
+-  auto dx = reinterpret_cast<float *>(output->MutableData());
+-  auto dy = reinterpret_cast<float *>(input->MutableData());
+-  CHECK_NULL_RETURN(po);
++  auto *dx = reinterpret_cast<float *>(output->MutableData());
++  auto *dy = reinterpret_cast<float *>(input->MutableData());
+   CHECK_NULL_RETURN(dx);
+   CHECK_NULL_RETURN(dy);
+-  std::fill(dx, dx + output->ElementsNum(), 0.f);
+-  auto ret = DoStridedSliceGrad(dy, dx, po, param_);
+-  if (ret != RET_OK) {
+-    MS_LOG(ERROR) << "StridedSliceGrad error error_code[" << ret << "]";
+-    return RET_ERROR;
++  return CalStridedSliceGrad(dy, dx);
++}
++
++int StridedSliceGradCPUKernel::CalStridedSliceGrad(float *input, float *output) {
++  int input_num = 1;
++  for (int le = 0; le < DIMENSION_8D; le++) {
++    input_num = input_num * param_->in_shape_[le];
++  }
++  int output_num = 1;
++  for (int len = 0; len < DIMENSION_8D; len++) {
++    output_num = output_num * output_shape_[len];
++  }
++
++  if (input_num == 0) {
++    res_arr_ = reinterpret_cast<float *>(ms_context_->allocator->Malloc(sizeof(float) * output_num));
++    for (int res_len = 0; res_len < output_num; res_len++) {
++      res_arr_[res_len] = static_cast<float>(0);
++    }
++    memcpy(output, res_arr_, output_num * sizeof(float));
++    FreeRunBuffer();
++    return RET_OK;
+   }
++
++  int temp_num = input_num;
++  int max_num = input_num;
++  int step = 1;
++  for (int i = DIMENSION_8D - 1; i >= 0; --i) {
++    temp_num = static_cast<int>(temp_num * output_shape_[i] / param_->in_shape_[i]);
++    max_num = MSMAX(max_num, temp_num);
++  }
++  temp_input_ = reinterpret_cast<float *>(ms_context_->allocator->Malloc(sizeof(float) * max_num));
++  memset(temp_input_, 0, max_num * sizeof(float));
++  memcpy(temp_input_, input, input_num * sizeof(float));
++  temp_ = reinterpret_cast<float *>(ms_context_->allocator->Malloc(max_num * sizeof(float)));
++  temp_num = input_num;
++  for (int i = DIMENSION_8D - 1; i >= 0; --i) {
++    temp_num = static_cast<int>(temp_num * output_shape_[i] / param_->in_shape_[i]);
++    memset(temp_, 0, sizeof(float) * temp_num);
++    int start1 = 0;
++    int start2 = 0;
++    while (start1 < temp_num) {
++      int id = 0;
++      for (int k = param_->begins_[i]; param_->strides_[i] > 0 ? k < param_->ends_[i] : k > param_->ends_[i];
++           k += param_->strides_[i], id++) {
++        memcpy(temp_ + start1 + k * step, temp_input_ + start2 + id * step, step * sizeof(float));
++      }
++      start1 += output_shape_[i] * step;
++      start2 += param_->in_shape_[i] * step;
++    }
++    step *= output_shape_[i];
++    std::swap(temp_input_, temp_);
++  }
++  memcpy(output, temp_input_, output_num * sizeof(float));
++  FreeRunBuffer();
+   return RET_OK;
+ }
+ 
++void StridedSliceGradCPUKernel::FreeRunBuffer() {
++  if (res_arr_ != nullptr) {
++    ms_context_->allocator->Free(res_arr_);
++    res_arr_ = nullptr;
++  }
++  if (temp_input_ != nullptr) {
++    ms_context_->allocator->Free(temp_input_);
++    temp_input_ = nullptr;
++  }
++  if (temp_ != nullptr) {
++    ms_context_->allocator->Free(temp_);
++    temp_ = nullptr;
++  }
++}
++
+ REG_KERNEL(kCPU, kNumberTypeFloat32, PrimitiveType_StridedSliceGrad, LiteKernelCreator<StridedSliceGradCPUKernel>)
+ }  // namespace mindspore::kernel
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h
+index 25d6f855..f34dd20d 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h
+@@ -40,9 +40,14 @@ class StridedSliceGradCPUKernel : public LiteKernel {
+   void FillEmptyDims();
+   void FillOutputDim();
+   void ParseMasks();
++  int CalStridedSliceGrad(float *input, float *output);
++  void FreeRunBuffer();
+ 
+   StridedSliceParameter *param_;
+   std::vector<int> output_shape_;
++  float *res_arr_ = nullptr;
++  float *temp_input_ = nullptr;
++  float *temp_ = nullptr;
+ };
+ }  // namespace mindspore::kernel
+ 
+diff --git a/mindspore/lite/src/litert/lite_model.cc b/mindspore/lite/src/litert/lite_model.cc
+index bcb9cb70..af9b1f8d 100644
+--- a/mindspore/lite/src/litert/lite_model.cc
++++ b/mindspore/lite/src/litert/lite_model.cc
+@@ -66,7 +66,9 @@ void LiteModel::Free() {
+   node_bufs_.resize(0);
+ 
+   for (auto *schema_tensor_wrapper : inner_all_tensors_) {
+-    delete schema_tensor_wrapper;
++    if (schema_tensor_wrapper != nullptr) {
++      delete schema_tensor_wrapper;
++    }
+   }
+   inner_all_tensors_.clear();
+ 
+-- 
+2.25.1
+
