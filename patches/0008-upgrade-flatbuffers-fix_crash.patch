@@ -1,0 +1,4931 @@
+From bcefb7478b4c90c3d09ce7c089e2cb00cd494c8e Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Tue, 30 Jan 2024 19:55:44 +0800
+Subject: [PATCH] add mindir ops interface
+
+Signed-off-by: chengfeng27 <chengfeng27@huawei.com>
+---
+ mindspore/lite/BUILD.gn                       |    5 +-
+ mindspore/lite/mindir/BUILD.gn                |   15 +-
+ mindspore/lite/mindir/include/mindir.h        |  152 +-
+ mindspore/lite/mindir/include/mindir_tensor.h |   29 -
+ mindspore/lite/mindir/include/mindir_types.h  |   21 +
+ mindspore/lite/mindir/src/mindir.cc           | 1179 +++++++++++++
+ .../src/mindir_nnrt_lite_graph_to_model.cc    | 1496 ----------------
+ .../mindir_nnrt_lite_graph_to_model_v2_0.cc   | 1497 -----------------
+ mindspore/lite/mindir/src/mindir_tensor.cc    |   80 -
+ mindspore/lite/src/litert/c_api/context_c.cc  |    4 +
+ .../cpu/fp32_grad/strided_slice_grad.cc       |  124 +-
+ .../kernel/cpu/fp32_grad/strided_slice_grad.h |    5 +
+ mindspore/lite/src/litert/lite_model.cc       |    4 +-
+ 13 files changed, 1446 insertions(+), 3165 deletions(-)
+ delete mode 100644 mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model.cc
+ delete mode 100644 mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model_v2_0.cc
+
+diff --git a/mindspore/lite/BUILD.gn b/mindspore/lite/BUILD.gn
+index d7fe4f55..4a83f498 100644
+--- a/mindspore/lite/BUILD.gn
++++ b/mindspore/lite/BUILD.gn
+@@ -366,6 +366,7 @@ ohos_shared_library("mindspore_lib") {
+     "../core/mindrt/:mindrt_obj",
+     "src/litert/kernel/cpu/:cpu_kernel_obj",
+     "src/common/:lite_common_mid_obj",
++    "//third_party/flatbuffers:flatbuffers_install_action",
+   ]
+ 
+   sources = all_sources
+@@ -473,7 +474,8 @@ ohos_shared_library("mindspore_lib") {
+ ohos_shared_library("mindspore_ndk") {
+   deps = [
+     ":mindspore_lib",
+-    ":mindspore_train_lib"
++    ":mindspore_train_lib",
++    "//third_party/flatbuffers:flatbuffers_install_action",
+   ]
+ 
+   sources = c_api_sources
+@@ -636,6 +638,7 @@ all_train_sources += fp32_train_kernel_sources
+ ohos_shared_library("mindspore_train_lib") {
+   deps = [
+     ":mindspore_lib",
++    "//third_party/flatbuffers:flatbuffers_install_action",
+   ]
+ 
+   sources = all_train_sources
+diff --git a/mindspore/lite/mindir/BUILD.gn b/mindspore/lite/mindir/BUILD.gn
+index b1435ef7..ad4eff84 100644
+--- a/mindspore/lite/mindir/BUILD.gn
++++ b/mindspore/lite/mindir/BUILD.gn
+@@ -19,11 +19,17 @@ import("//build/ohos.gni")
+ #     "tests:mindir_test",
+ #   ]
+ # }
++
++config("mindir_config") {
++  include_dirs = [
++    "include",
++  ]
++}
++
+ ohos_shared_library("mindir_lib") {
+   include_dirs = [
+     "../",
+     "../../core",
+-    "include",
+     "inner_headers",
+     "//third_party/flatbuffers/include",
+     "//third_party/bounds_checking_function/include",
+@@ -34,8 +40,6 @@ ohos_shared_library("mindir_lib") {
+     "src/mindir.cc",
+     "src/mindir_memory_manager.cc",
+     "src/mindir_nnrt_lite_graph.cc",
+-    "src/mindir_nnrt_lite_graph_to_model.cc",
+-    "src/mindir_nnrt_lite_graph_to_model_v2_0.cc",
+     "src/mindir_tensor.cc",
+     "src/utils.cc",
+   ]
+@@ -45,14 +49,17 @@ ohos_shared_library("mindir_lib") {
+     "drivers_interface_nnrt:libnnrt_proxy_2.0",
+     "hdf_core:libhdi",
+     "hilog:libhilog",
+-    "ipc:ipc_core",
+     "bounds_checking_function:libsec_shared",
+     "drivers_interface_nnrt:nnrt_idl_headers"
+   ]
++  deps = [
++    "//third_party/flatbuffers:flatbuffers_install_action",
++  ]
+   configs = [
+     "../:disable_android",
+     "../:secure_option",
+   ]
++  public_configs = [ ":mindir_config" ]
+   defines = [ "MS_COMPILE_OHOS" ]
+   output_name = "mindir"
+   innerapi_tags = [ "platformsdk_indirect" ]
+diff --git a/mindspore/lite/mindir/include/mindir.h b/mindspore/lite/mindir/include/mindir.h
+index f47cad8c..4f633493 100644
+--- a/mindspore/lite/mindir/include/mindir.h
++++ b/mindspore/lite/mindir/include/mindir.h
+@@ -19,25 +19,6 @@
+ #include "mindir_lite_graph.h"
+ #include "mindir_tensor.h"
+ #include "mindir_primitive.h"
+-namespace OHOS {
+-namespace HDI {
+-namespace Nnrt {
+-namespace V1_0 {
+-struct Model;
+-}  // namespace V1_0
+-}  // namespace Nnrt
+-}  // namespace HDI
+-}  // namespace OHOS
+-
+-namespace OHOS {
+-namespace HDI {
+-namespace Nnrt {
+-namespace V2_0 {
+-struct Model;
+-}  // namespace V2_0
+-}  // namespace Nnrt
+-}  // namespace HDI
+-}  // namespace OHOS
+ 
+ namespace mindspore {
+ namespace schema {
+@@ -45,16 +26,6 @@ struct Attribute;
+ }
+ 
+ namespace lite {
+-
+-// ********** Model **********
+-OHOS::HDI::Nnrt::V1_0::Model *MindIR_LiteGraph_To_Model(const LiteGraph *lite_graph,
+-                                                        const OHOS::HDI::Nnrt::V1_0::SharedBuffer &buffer);
+-void MindIR_Model_Destroy(OHOS::HDI::Nnrt::V1_0::Model **model);
+-
+-OHOS::HDI::Nnrt::V2_0::Model *MindIR_LiteGraph_To_Model(const LiteGraph *lite_graph,
+-                                                        const OHOS::HDI::Nnrt::V2_0::SharedBuffer &buffer);
+-void MindIR_Model_Destroy(OHOS::HDI::Nnrt::V2_0::Model **model);
+-
+ // ********** Activation **********
+ PrimitivePtr MindIR_Activation_CreatePrimitive(ActivationType activation_type, float alpha, float min_val,
+                                                float max_val, bool approximate);
+@@ -440,6 +411,129 @@ PrimitivePtr MindIR_Unsqueeze_CreatePrimitive(const std::vector<int64_t> &axis);
+ std::vector<int64_t> MindIR_Unsqueeze_GetAxis(ConstPrimitivePtr primitive);
+ void MindIR_Unsqueeze_SetAxis(PrimitivePtr *primitive, const std::vector<int64_t> &axis);
+ 
++// ********** Abs **********
++PrimitivePtr MindIR_Abs_CreatePrimitive();
++
++// ********** BroadcastTo **********
++PrimitivePtr MindIR_BroadcastTo_CreatePrimitive(const std::vector<int64_t> &shape);
++std::vector<int64_t> MindIR_BroadcastTo_GetShape(ConstPrimitivePtr primitive);
++void MindIR_BroadcastTo_SetShape(PrimitivePtr *primitive, const std::vector<int64_t> &shape);
++
++// ********** ConstantOfShape **********
++PrimitivePtr MindIR_ConstantOfShape_CreatePrimitive(int64_t data_type, const std::vector<float> &value);
++int64_t MindIR_ConstantOfShape_GetDataType(ConstPrimitivePtr primitive);
++void MindIR_ConstantOfShape_SetDataType(PrimitivePtr *primitive, int64_t data_type);
++std::vector<float> MindIR_ConstantOfShape_GetValue(ConstPrimitivePtr primitive);
++void MindIR_ConstantOfShape_SetValue(PrimitivePtr *primitive, const std::vector<float> &value);
++
++// ********** DepthToSpace **********
++PrimitivePtr MindIR_DepthToSpace_CreatePrimitive(int64_t block_size, Format &format, std::string mode);
++int64_t MindIR_DepthToSpace_GetBlockSize(ConstPrimitivePtr primitive);
++void MindIR_DepthToSpace_SetBlockSize(PrimitivePtr *primitive, int64_t block_size);
++Format MindIR_DepthToSpace_GetFormat(ConstPrimitivePtr primitive);
++void MindIR_DepthToSpace_SetFormat(PrimitivePtr *primitive, Format &format);
++std::string MindIR_DepthToSpace_GetMode(ConstPrimitivePtr primitive);
++void MindIR_DepthToSpace_SetMode(PrimitivePtr *primitive, std::string mode);
++
++// ********** ExpFusion **********
++PrimitivePtr MindIR_ExpFusion_CreatePrimitive(float base, float scale, float shift);
++float MindIR_ExpFusion_GetBase(ConstPrimitivePtr primitive);
++void MindIR_ExpFusion_SetBase(PrimitivePtr *primitive, float base);
++float MindIR_ExpFusion_GetScale(ConstPrimitivePtr primitive);
++void MindIR_ExpFusion_SetScale(PrimitivePtr *primitive, float scale);
++float MindIR_ExpFusion_GetShift(ConstPrimitivePtr primitive);
++void MindIR_ExpFusion_SetShift(PrimitivePtr *primitive, float shift);
++
++// ********** Flatten **********
++PrimitivePtr MindIR_Flatten_CreatePrimitive(int64_t axis);
++int64_t MindIR_Flatten_GetAxis(ConstPrimitivePtr primitive);
++void MindIR_Flatten_SetAxis(PrimitivePtr *primitive, int64_t axis);
++
++// ********** InstanceNorm **********
++PrimitivePtr MindIR_InstanceNorm_CreatePrimitive(float epsilon);
++float MindIR_InstanceNorm_GetEpsilon(ConstPrimitivePtr primitive);
++void MindIR_InstanceNorm_SetEpsilon(PrimitivePtr *primitive, float epsilon);
++
++// ********** Less **********
++PrimitivePtr MindIR_Less_CreatePrimitive();
++
++// ********** Range **********
++PrimitivePtr MindIR_Range_CreatePrimitive(int64_t d_type, int64_t start, int64_t limit, int64_t delta);
++int64_t MindIR_Range_GetDType(ConstPrimitivePtr primitive);
++void MindIR_Range_SetDType(PrimitivePtr *primitive, int64_t d_type);
++int64_t MindIR_Range_GetStart(ConstPrimitivePtr primitive);
++void MindIR_Range_SetStart(PrimitivePtr *primitive, int64_t start);
++int64_t MindIR_Range_GetLimit(ConstPrimitivePtr primitive);
++void MindIR_Range_SetLimit(PrimitivePtr *primitive, int64_t limit);
++int64_t MindIR_Range_GetDelta(ConstPrimitivePtr primitive);
++void MindIR_Range_SetDelta(PrimitivePtr *primitive, int64_t delta);
++
++// ********** RealDiv **********
++PrimitivePtr MindIR_RealDiv_CreatePrimitive();
++
++// ********** Square **********
++PrimitivePtr MindIR_Square_CreatePrimitive();
++
++// ********** Unstack **********
++PrimitivePtr MindIR_Unstack_CreatePrimitive(int64_t axis);
++int64_t MindIR_Unstack_GetAxis(ConstPrimitivePtr primitive);
++void MindIR_Unstack_SetAxis(PrimitivePtr *primitive, int64_t axis);
++
++// ********** Select **********
++PrimitivePtr MindIR_Select_CreatePrimitive();
++
++// ********** Erf **********
++PrimitivePtr MindIR_Erf_CreatePrimitive();
++
++// ********** Equal **********
++PrimitivePtr MindIR_Equal_CreatePrimitive();
++
++// ********** Greater **********
++PrimitivePtr MindIR_Greater_CreatePrimitive();
++
++// ********** GreaterEqual **********
++PrimitivePtr MindIR_GreaterEqual_CreatePrimitive();
++
++// ********** NotEqual **********
++PrimitivePtr MindIR_NotEqual_CreatePrimitive();
++
++// ********** LeakyRelu **********
++PrimitivePtr MindIR_LeakyRelu_CreatePrimitive(float negative_slope);
++float MindIR_LeakyRelu_GetNegativeSlope(ConstPrimitivePtr primitive);
++void MindIR_LeakyRelu_SetNegativeSlope(PrimitivePtr *primitive, float negative_slope);
++
++// ********** LSTM **********
++PrimitivePtr MindIR_LSTM_CreatePrimitive(
++  bool bidirectional, bool has_bias, int64_t input_size, int64_t hidden_size, int64_t num_layers,
++  int64_t num_directions, float dropout, float zoneout_cell, float zoneout_hidden, int64_t proj_size);
++bool MindIR_LSTM_GetBidirectional(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetBidirectional(PrimitivePtr *primitive, bool bidirectional);
++bool MindIR_LSTM_GetHasBias(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetHasBias(PrimitivePtr *primitive, bool has_bias);
++int64_t MindIR_LSTM_GetInputSize(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetInputSize(PrimitivePtr *primitive, int64_t input_size);
++int64_t MindIR_LSTM_GetHiddenSize(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetHiddenSize(PrimitivePtr *primitive, int64_t hidden_size);
++int64_t MindIR_LSTM_GetNumLayers(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetNumLayers(PrimitivePtr *primitive, int64_t num_layers);
++int64_t MindIR_LSTM_GetNumDirections(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetNumDirections(PrimitivePtr *primitive, int64_t num_directions);
++float MindIR_LSTM_GetDropout(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetDropout(PrimitivePtr *primitive, float dropout);
++float MindIR_LSTM_GetZoneoutCell(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetZoneoutCell(PrimitivePtr *primitive, float zoneout_cell);
++float MindIR_LSTM_GetZoneoutHidden(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetZoneoutHidden(PrimitivePtr *primitive, float zoneout_hidden);
++int64_t MindIR_LSTM_GetProjSize(ConstPrimitivePtr primitive);
++void MindIR_LSTM_SetProjSize(PrimitivePtr *primitive, int64_t proj_size);
++
++// ********** Clip **********
++PrimitivePtr MindIR_Clip_CreatePrimitive(float max, float min);
++float MindIR_Clip_GetMax(ConstPrimitivePtr primitive);
++void MindIR_Clip_SetMax(PrimitivePtr *primitive, float max);
++float MindIR_Clip_GetMin(ConstPrimitivePtr primitive);
++void MindIR_Clip_SetMin(PrimitivePtr *primitive, float min);
++
+ // ********** Custom **********
+ std::vector<const mindspore::schema::Attribute *> MindIR_Custom_GetAttr(ConstPrimitivePtr primitive);
+ std::string MindIR_Attribute_GetName(const mindspore::schema::Attribute &attr);
+diff --git a/mindspore/lite/mindir/include/mindir_tensor.h b/mindspore/lite/mindir/include/mindir_tensor.h
+index 836bc8af..c1ac89bf 100644
+--- a/mindspore/lite/mindir/include/mindir_tensor.h
++++ b/mindspore/lite/mindir/include/mindir_tensor.h
+@@ -3,26 +3,6 @@
+ #include "mindir_lite_graph.h"
+ #include "mindir_types.h"
+ 
+-namespace OHOS {
+-namespace HDI {
+-namespace Nnrt {
+-namespace V1_0 {
+-struct SharedBuffer;
+-}  // namespace V1_0
+-}  // namespace Nnrt
+-}  // namespace HDI
+-}  // namespace OHOS
+-
+-namespace OHOS {
+-namespace HDI {
+-namespace Nnrt {
+-namespace V2_0 {
+-struct SharedBuffer;
+-}  // namespace V2_0
+-}  // namespace Nnrt
+-}  // namespace HDI
+-}  // namespace OHOS
+-
+ namespace mindspore {
+ namespace lite {
+ 
+@@ -39,15 +19,6 @@ std::vector<int32_t> MindIR_Tensor_GetDims(ConstTensorPtr tensor);
+ void MindIR_Tensor_SetDims(TensorPtr *tensor, const std::vector<int32_t> &dims);
+ Format MindIR_Tensor_GetFormat(ConstTensorPtr tensor);
+ void MindIR_Tensor_SetFormat(TensorPtr *tensor, Format format);
+-
+-OHOS::HDI::Nnrt::V1_0::SharedBuffer MindIR_Tensor_GetData(ConstTensorPtr tensor,
+-                                                          const OHOS::HDI::Nnrt::V1_0::SharedBuffer &buffer_templete,
+-                                                          uint8_t *mmap_ptr, unsigned int offset);
+-
+-OHOS::HDI::Nnrt::V2_0::SharedBuffer MindIR_Tensor_GetData_V2_0(ConstTensorPtr tensor,
+-                                                          const OHOS::HDI::Nnrt::V2_0::SharedBuffer &buffer_templete,
+-                                                          uint8_t *mmap_ptr, unsigned int offset);
+-
+ void MindIR_Tensor_SetData(TensorPtr *tensor, const std::vector<uint8_t> &data);
+ std::vector<uint8_t> MindIR_Tensor_GetData(ConstTensorPtr tensor);
+ std::vector<QuantParam> MindIR_Tensor_GetQuantParams(ConstTensorPtr tensor);
+diff --git a/mindspore/lite/mindir/include/mindir_types.h b/mindspore/lite/mindir/include/mindir_types.h
+index ad272f8e..3ee6aca1 100644
+--- a/mindspore/lite/mindir/include/mindir_types.h
++++ b/mindspore/lite/mindir/include/mindir_types.h
+@@ -53,34 +53,51 @@ enum QuantType : int8_t {
+ 
+ enum NodeType : uint32_t {
+   NODE_TYPE_NONE = 0,
++  NODE_TYPE_ABS = 1,
+   NODE_TYPE_ACTIVATION = 2,
+   NODE_TYPE_ADD_FUSION = 5,
+   NODE_TYPE_ARGMAX_FUSION = 11,
+   NODE_TYPE_AVG_POOL_FUSION = 17,
+   NODE_TYPE_BATCH_TO_SPACE_ND = 22,
+   NODE_TYPE_BIAS_ADD = 23,
++  NODE_TYPE_BROADCAST_TO = 27,
+   NODE_TYPE_CAST = 28,
++  NODE_TYPE_CLIP = 30,
+   NODE_TYPE_CONCAT = 31,
+   NODE_TYPE_CONV2D_FUSION = 35,
+   NODE_TYPE_CONV2D_TRANSPOSE_FUSION = 36,
++  NODE_TYPE_CONSTANT_OF_SHAPE = 38,
++  NODE_TYPE_DEPTH_TO_SPACE = 45,
+   NODE_TYPE_DIV_FUSION = 47,
+   NODE_TYPE_ELTWISE = 52,
++  NODE_TYPE_EQUAL = 53,
++  NODE_TYPE_EXPFUSION = 55,
+   NODE_TYPE_EXPAND_DIMS = 56,
++  NODE_TYPE_FLATTEN = 61,
+   NODE_TYPE_FILL = 66,
+   NODE_TYPE_FULL_CONNECTION = 67,
+   NODE_TYPE_FUSED_BATCH_NORM = 68,
+   NODE_TYPE_GATHER = 69,
++  NODE_TYPE_GREATER = 71,
++  NODE_TYPE_GREATER_EQUAL = 72,
++  NODE_TYPE_INSTANCE_NORM = 74,
+   NODE_TYPE_LAYER_NORM_FUSION = 75,
++  NODE_TYPE_LEAKY_RELU = 76,
++  NODE_TYPE_LESS = 77,
+   NODE_TYPE_LESS_EQUAL = 78,
++  NODE_TYPE_LSTM = 87,
+   NODE_TYPE_MATMUL_FUSION = 89,
+   NODE_TYPE_MAXIMUM = 90,
+   NODE_TYPE_MAX_POOL_FUSION = 92,
+   NODE_TYPE_MUL_FUSION = 99,
++  NODE_TYPE_NOT_EQUAL = 103,
+   NODE_TYPE_ONE_HOT = 105,
+   NODE_TYPE_PAD_FUSION = 107,
+   NODE_TYPE_POW_FUSION = 110,
+   NODE_TYPE_PRELU_FUSION = 112,
+   NODE_TYPE_QUANT_DTYPE_CAST = 113,
++  NODE_TYPE_RANGE = 115,
++  NODE_TYPE_REAL_DIV = 117,
+   NODE_TYPE_REDUCE_FUSION = 118,
+   NODE_TYPE_RESHAPE = 119,
+   NODE_TYPE_RESIZE = 120,
+@@ -93,6 +110,7 @@ enum NodeType : uint32_t {
+   NODE_TYPE_SPLIT = 145,
+   NODE_TYPE_SQRT = 146,
+   NODE_TYPE_SQUEEZE = 147,
++  NODE_TYPE_SQUARE = 148,
+   NODE_TYPE_SQUARED_DIFFERENCE = 149,
+   NODE_TYPE_STACK = 150,
+   NODE_TYPE_STRIDED_SLICE = 151,
+@@ -101,6 +119,9 @@ enum NodeType : uint32_t {
+   NODE_TYPE_TOPK_FUSION = 161,
+   NODE_TYPE_TRANSPOSE = 162,
+   NODE_TYPE_UNSQUEEZE = 165,
++  NODE_TYPE_UNSTACK = 166,
++  NODE_TYPE_SELECT = 170,
++  NODE_TYPE_ERF = 178,
+   NODE_TYPE_CUSTOM = 191,
+ };
+ 
+diff --git a/mindspore/lite/mindir/src/mindir.cc b/mindspore/lite/mindir/src/mindir.cc
+index 374bbef5..36056c59 100644
+--- a/mindspore/lite/mindir/src/mindir.cc
++++ b/mindspore/lite/mindir/src/mindir.cc
+@@ -4339,6 +4339,1185 @@ void MindIR_Unsqueeze_SetAxis(PrimitivePtr *primitive, const std::vector<int64_t
+   }
+ }
+ 
++// ********** Abs **********
++PrimitivePtr MindIR_Abs_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateAbs(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_ABS), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** BroadcastTo **********
++PrimitivePtr MindIR_BroadcastTo_CreatePrimitive(const std::vector<int64_t> &shape) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateBroadcastTo(fbb, fbb.CreateVector(shape.data(), shape.size()));
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_BROADCAST_TO), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++std::vector<int64_t> MindIR_BroadcastTo_GetShape(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_BroadcastTo();
++    if (prim != nullptr && value != nullptr) {
++      std::vector<int64_t> result;
++      auto src = value->shape();
++      result.resize(src->size());
++      std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
++      return result;
++    } else {
++      return {};
++    }
++  } else {
++    return {};
++  }
++}
++
++void MindIR_BroadcastTo_SetShape(PrimitivePtr *primitive, const std::vector<int64_t> &shape) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_BroadcastTo();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateBroadcastTo(
++        fbb, fbb.CreateVector(shape.data(), shape.size()));
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_BROADCAST_TO), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** ConstantOfShape **********
++PrimitivePtr MindIR_ConstantOfShape_CreatePrimitive(int64_t data_type, const std::vector<float> &value) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateConstantOfShape(fbb, data_type, fbb.CreateVector(value.data(), value.size()));
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CONSTANT_OF_SHAPE), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_ConstantOfShape_GetDataType(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value_ = prim->value_as_ConstantOfShape();
++    if (prim != nullptr && value_ != nullptr) {
++      return value_->data_type();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_ConstantOfShape_SetDataType(PrimitivePtr *primitive, int64_t data_type) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value_ = prim->value_as_ConstantOfShape();
++    if (prim != nullptr && value_ != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateConstantOfShape(fbb, data_type, fbb.CreateVector(value_->value()->data(), value_->value()->size()));
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CONSTANT_OF_SHAPE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++std::vector<float> MindIR_ConstantOfShape_GetValue(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value_ = prim->value_as_ConstantOfShape();
++    if (prim != nullptr && value_ != nullptr) {
++      std::vector<float> result;
++      auto src = value_->value();
++      result.resize(src->size());
++      std::transform(src->begin(), src->end(), result.begin(), [](float item) { return item; });
++      return result;
++    } else {
++      return {};
++    }
++  } else {
++    return {};
++  }
++}
++
++void MindIR_ConstantOfShape_SetValue(PrimitivePtr *primitive, const std::vector<float> &value) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value_ = prim->value_as_ConstantOfShape();
++    if (prim != nullptr && value_ != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateConstantOfShape(
++        fbb, value_->data_type(), fbb.CreateVector(value.data(), value.size()));
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CONSTANT_OF_SHAPE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** DepthToSpace **********
++PrimitivePtr MindIR_DepthToSpace_CreatePrimitive(int64_t block_size, Format &format, std::string mode) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateDepthToSpace(fbb, block_size, static_cast<schema::Format>(format), fbb.CreateString(mode));
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DEPTH_TO_SPACE), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_DepthToSpace_GetBlockSize(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DepthToSpace();
++    if (prim != nullptr && value != nullptr) {
++      return value->block_size();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_DepthToSpace_SetBlockSize(PrimitivePtr *primitive, int64_t block_size) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DepthToSpace();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDepthToSpace(fbb, block_size, static_cast<schema::Format>(value->format()), 
++        fbb.CreateString(std::string(value->mode()->c_str(), value->mode()->size())));
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DEPTH_TO_SPACE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++Format MindIR_DepthToSpace_GetFormat(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DepthToSpace();
++    if (prim != nullptr && value != nullptr) {
++      return static_cast<Format>(value->format());
++    } else {
++      Format en = static_cast<Format>(0);
++      return en;
++    }
++  } else {
++    Format en = static_cast<Format>(0);
++    return en;
++  }
++}
++
++void MindIR_DepthToSpace_SetFormat(PrimitivePtr *primitive, Format &format) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DepthToSpace();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDepthToSpace(fbb, value->block_size(), static_cast<schema::Format>(format), 
++        fbb.CreateString(std::string(value->mode()->c_str(), value->mode()->size())));
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DEPTH_TO_SPACE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++std::string MindIR_DepthToSpace_GetMode(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DepthToSpace();
++    if (prim != nullptr && value != nullptr) {
++      return std::string(value->mode()->c_str(),value->mode()->size());
++    } else {
++      return nullptr;
++    }
++  } else {
++    return nullptr;
++  }
++}
++
++void MindIR_DepthToSpace_SetMode(PrimitivePtr *primitive, std::string mode) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DepthToSpace();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDepthToSpace(fbb, value->block_size(), static_cast<schema::Format>(value->format()), fbb.CreateString(mode));
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DEPTH_TO_SPACE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** ExpFusion **********
++PrimitivePtr MindIR_ExpFusion_CreatePrimitive(float base, float scale, float shift) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateExpFusion(fbb, base, scale, shift);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_EXPFUSION), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++float MindIR_ExpFusion_GetBase(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_ExpFusion();
++    if (prim != nullptr && value != nullptr) {
++      return value->base();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_ExpFusion_SetBase(PrimitivePtr *primitive, float base) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_ExpFusion();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateExpFusion(fbb, base, value->scale(), value->shift());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_EXPFUSION), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_ExpFusion_GetScale(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_ExpFusion();
++    if (prim != nullptr && value != nullptr) {
++      return value->scale();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_ExpFusion_SetScale(PrimitivePtr *primitive, float scale) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_ExpFusion();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateExpFusion(fbb, value->base(), scale, value->shift());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_EXPFUSION), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_ExpFusion_GetShift(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_ExpFusion();
++    if (prim != nullptr && value != nullptr) {
++      return value->shift();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_ExpFusion_SetShift(PrimitivePtr *primitive, float shift) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_ExpFusion();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateExpFusion(fbb, value->base(), value->scale(), shift);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_EXPFUSION), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** Flatten **********
++PrimitivePtr MindIR_Flatten_CreatePrimitive(int64_t axis) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateFlatten(fbb, axis);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_FLATTEN), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_Flatten_GetAxis(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Flatten();
++    if (prim != nullptr && value != nullptr) {
++      return value->axis();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Flatten_SetAxis(PrimitivePtr *primitive, int64_t axis) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Flatten();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateFlatten(fbb, axis);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_FLATTEN), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** InstanceNorm **********
++PrimitivePtr MindIR_InstanceNorm_CreatePrimitive(float epsilon) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateInstanceNorm(fbb, epsilon);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_INSTANCE_NORM), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++float MindIR_InstanceNorm_GetEpsilon(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_InstanceNorm();
++    if (prim != nullptr && value != nullptr) {
++      return value->epsilon();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_InstanceNorm_SetEpsilon(PrimitivePtr *primitive, float epsilon) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_InstanceNorm();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateInstanceNorm(fbb, epsilon);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_INSTANCE_NORM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** Less **********
++PrimitivePtr MindIR_Less_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLess(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LESS), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Range **********
++PrimitivePtr MindIR_Range_CreatePrimitive(int64_t d_type, int64_t start, int64_t limit, int64_t delta) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateRange(fbb, d_type, start, limit, delta);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_RANGE), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_Range_GetDType(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      return value->d_type();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Range_SetDType(PrimitivePtr *primitive, int64_t d_type) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateRange(fbb, d_type, value->start(), value->limit(), value->delta());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_RANGE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_Range_GetStart(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      return value->start();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Range_SetStart(PrimitivePtr *primitive, int64_t start) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateRange(fbb, value->d_type(), start, value->limit(), value->delta());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_RANGE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_Range_GetLimit(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      return value->limit();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Range_SetLimit(PrimitivePtr *primitive, int64_t limit) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateRange(fbb, value->d_type(), value->start(), limit, value->delta());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_RANGE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_Range_GetDelta(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      return value->delta();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Range_SetDelta(PrimitivePtr *primitive, int64_t delta) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Range();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateRange(fbb, value->d_type(), value->start(), value->limit(), delta);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_RANGE), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** RealDiv **********
++PrimitivePtr MindIR_RealDiv_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateRealDiv(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_REAL_DIV), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++
++// ********** Square **********
++PrimitivePtr MindIR_Square_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateSquare(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SQUARE), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Unstack **********
++PrimitivePtr MindIR_Unstack_CreatePrimitive(int64_t axis) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateUnstack(fbb, axis);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_UNSTACK), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_Unstack_GetAxis(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Unstack();
++    if (prim != nullptr && value != nullptr) {
++      return value->axis();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Unstack_SetAxis(PrimitivePtr *primitive, int64_t axis) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Unstack();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateUnstack(fbb, axis);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_UNSTACK), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** Select **********
++PrimitivePtr MindIR_Select_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateSelect(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SELECT), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Erf **********
++PrimitivePtr MindIR_Erf_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateErf(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_ERF), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Equal **********
++PrimitivePtr MindIR_Equal_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateEqual(fbb);
++  auto prim_offset =
++    schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_EQUAL), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Greater **********
++PrimitivePtr MindIR_Greater_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateGreater(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_GREATER), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** GreaterEqual **********
++PrimitivePtr MindIR_GreaterEqual_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateGreaterEqual(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_GREATER_EQUAL), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** NotEqual **********
++PrimitivePtr MindIR_NotEqual_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateNotEqual(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_NOT_EQUAL), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** LeakyRelu **********
++PrimitivePtr MindIR_LeakyRelu_CreatePrimitive(float negative_slope) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLeakyRelu(fbb, negative_slope);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LEAKY_RELU), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++float MindIR_LeakyRelu_GetNegativeSlope(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LeakyRelu();
++    if (prim != nullptr && value != nullptr) {
++      return value->negative_slope();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_LeakyRelu_SetNegativeSlope(PrimitivePtr *primitive, float negative_slope) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LeakyRelu();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateInstanceNorm(fbb, negative_slope);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LEAKY_RELU), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** LSTM **********
++PrimitivePtr MindIR_LSTM_CreatePrimitive(
++  bool bidirectional, bool has_bias, int64_t input_size, int64_t hidden_size, int64_t num_layers,
++  int64_t num_directions, float dropout, float zoneout_cell, float zoneout_hidden, int64_t proj_size) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLSTM(fbb, bidirectional, has_bias, input_size, hidden_size, num_layers,
++                                       num_directions,dropout, zoneout_cell, zoneout_hidden, proj_size);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++bool MindIR_LSTM_GetBidirectional(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->bidirectional();
++    } else {
++      return false;
++    }
++  } else {
++    return false;
++  }
++}
++
++void MindIR_LSTM_SetBidirectional(PrimitivePtr *primitive, bool bidirectional) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, bidirectional, value->has_bias(), value->input_size(), value->hidden_size(),
++                           value->num_layers(), value->num_directions(), value->dropout(), value->zoneout_cell(),
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++bool MindIR_LSTM_GetHasBias(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->has_bias();
++    } else {
++      return false;
++    }
++  } else {
++    return false;
++  }
++}
++
++void MindIR_LSTM_SetHasBias(PrimitivePtr *primitive, bool has_bias) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), has_bias, value->input_size(), value->hidden_size(),
++                           value->num_layers(), value->num_directions(), value->dropout(), value->zoneout_cell(),
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_LSTM_GetInputSize(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->input_size();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_LSTM_SetInputSize(PrimitivePtr *primitive, int64_t input_size) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), input_size, value->hidden_size(),
++                           value->num_layers(), value->num_directions(), value->dropout(), value->zoneout_cell(),
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_LSTM_GetHiddenSize(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->hidden_size();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_LSTM_SetHiddenSize(PrimitivePtr *primitive, int64_t hidden_size) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), value->input_size(), hidden_size,
++                           value->num_layers(), value->num_directions(), value->dropout(), value->zoneout_cell(),
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_LSTM_GetNumLayers(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->num_layers();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_LSTM_SetNumLayers(PrimitivePtr *primitive, int64_t num_layers) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), value->input_size(), value->hidden_size(),
++                           num_layers, value->num_directions(), value->dropout(), value->zoneout_cell(),
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_LSTM_GetNumDirections(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->num_directions();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_LSTM_SetNumDirections(PrimitivePtr *primitive, int64_t num_directions) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), value->input_size(), value->hidden_size(),
++                           value->num_layers(), num_directions, value->dropout(), value->zoneout_cell(),
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_LSTM_GetDropout(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->dropout();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_LSTM_SetDropout(PrimitivePtr *primitive, float dropout) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), value->input_size(), value->hidden_size(),
++                           value->num_layers(), value->num_directions(), dropout, value->zoneout_cell(),
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_LSTM_GetZoneoutCell(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->zoneout_cell();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_LSTM_SetZoneoutCell(PrimitivePtr *primitive, float zoneout_cell) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), value->input_size(), value->hidden_size(),
++                           value->num_layers(), value->num_directions(), value->dropout(), zoneout_cell,
++                           value->zoneout_hidden(), value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_LSTM_GetZoneoutHidden(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->zoneout_hidden();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_LSTM_SetZoneoutHidden(PrimitivePtr *primitive, float zoneout_hidden) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), value->input_size(), value->hidden_size(),
++                           value->num_layers(), value->num_directions(), value->dropout(), value->zoneout_cell(),
++                           zoneout_hidden, value->proj_size());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_LSTM_GetProjSize(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      return value->proj_size();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_LSTM_SetProjSize(PrimitivePtr *primitive, int64_t proj_size) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LSTM();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = 
++        schema::CreateLSTM(fbb, value->bidirectional(), value->has_bias(), value->input_size(), value->hidden_size(),
++                           value->num_layers(), value->num_directions(), value->dropout(), value->zoneout_cell(),
++                           value->zoneout_hidden(), proj_size);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LSTM), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** Clip **********
++PrimitivePtr MindIR_Clip_CreatePrimitive(float max, float min) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateClip(fbb, max, min);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CLIP), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++float MindIR_Clip_GetMax(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Clip();
++    if (prim != nullptr && value != nullptr) {
++      return value->max();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_Clip_SetMax(PrimitivePtr *primitive, float max) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Clip();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateClip(fbb, max, value->min());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CLIP), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_Clip_GetMin(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Clip();
++    if (prim != nullptr && value != nullptr) {
++      return value->min();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_Clip_SetMin(PrimitivePtr *primitive, float min) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Clip();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateClip(fbb, value->max(), min);
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CLIP), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
+ // ********** Custom **********
+ std::vector<const mindspore::schema::Attribute *> MindIR_Custom_GetAttr(ConstPrimitivePtr primitive) {
+   if (primitive == nullptr) {
+diff --git a/mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model.cc b/mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model.cc
+deleted file mode 100644
+index df39e04b..00000000
+--- a/mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model.cc
++++ /dev/null
+@@ -1,1496 +0,0 @@
+-/**
+- * Copyright 2021 Huawei Technologies Co., Ltd
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- * http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-#include "mindir.h"
+-#include <vector>
+-#include <algorithm>
+-#include <sys/mman.h>
+-#include "src/common/log.h"
+-#include "lite_graph.h"
+-#include "schema/model_generated.h"
+-#include "mindir_types.h"
+-#include "message_parcel.h"
+-#include "nnrt/v1_0/nnrt_types.h"
+-#include "nnrt/v1_0/node_attr_types.h"
+-#include "nnrt/v1_0/model_types.h"
+-
+-using namespace OHOS::HDI::Nnrt::V1_0;
+-namespace mindspore {
+-namespace lite {
+-
+-constexpr size_t kNumTwo = 2;
+-constexpr size_t kNumFour = 4;
+-constexpr size_t kNumEight = 8;
+-
+-inline std::vector<OHOS::HDI::Nnrt::V1_0::QuantParam> MindIR_Tensor_GetQuantParams_OHOS(TensorPtr tensor) {
+-  if (tensor != nullptr) {
+-    auto value = static_cast<schema::Tensor *>(tensor);
+-
+-    if (value != nullptr) {
+-      std::vector<OHOS::HDI::Nnrt::V1_0::QuantParam> result;
+-      auto src = value->quantParams();
+-      if (src == nullptr) {
+-        return {};
+-      }
+-      size_t size = src->size();
+-      result.reserve(src->size());
+-      for (size_t i = 0; i < size; i++) {
+-        auto tmp = src->Get(i);
+-        OHOS::HDI::Nnrt::V1_0::QuantParam quantParam{tmp->numBits(), tmp->zeroPoint(), tmp->scale()};
+-        result.emplace_back(quantParam);
+-      }
+-      return result;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-
+-void MindIR_Model_Destroy(OHOS::HDI::Nnrt::V1_0::Model **model) {
+-  if (model != nullptr) {
+-    auto model_data = *model;
+-    if (model_data != nullptr) {
+-      delete (model_data);
+-      *model = nullptr;
+-    } else {
+-      MS_LOG(ERROR) << "*model is nullptr, desrtoy model fail.";
+-    }
+-  }
+-}
+-
+-OHOS::HDI::Nnrt::V1_0::Model *MindIR_LiteGraph_To_Model(const LiteGraph *lite_graph, const OHOS::HDI::Nnrt::V1_0::SharedBuffer &buffer) {
+-  if (lite_graph != nullptr) {
+-    MS_LOG(INFO) << "MindIR_LiteGraph_To_Model begin";
+-    if (!lite_graph->name_.empty()) {
+-      MS_LOG(INFO) << "Start converting lite graph,name =" << lite_graph->name_;
+-    } else {
+-      MS_LOG(INFO) << "Start converting lite graph, but lite graph has no name.";
+-    }
+-    std::vector<uint32_t> inputIndex;
+-    std::vector<uint32_t> outputIndex;
+-    std::vector<OHOS::HDI::Nnrt::V1_0::Node> nodes;
+-    std::vector<OHOS::HDI::Nnrt::V1_0::Tensor> allTensors;
+-    std::vector<OHOS::HDI::Nnrt::V1_0::SubGraph> subGraph;
+-    // nodes
+-    MS_LOG(INFO) << "Start converting nodes, vector size = " << lite_graph->all_nodes_.size();
+-    nodes.reserve(lite_graph->all_nodes_.size());
+-    for (auto node : lite_graph->all_nodes_) {
+-      if (node == nullptr) {
+-        MS_LOG(ERROR) << "node is nullptr, convert fail.";
+-        return nullptr;
+-      }
+-      OHOS::HDI::Nnrt::V1_0::Node tmp;
+-      tmp.name = node->name_;
+-      if (node->primitive_ == nullptr) {
+-        MS_LOG(ERROR) << "node primitive is nullptr, convert fail.";
+-        return nullptr;
+-      }
+-      auto prim = static_cast<schema::Primitive *>(node->primitive_);
+-      auto value = prim->value_type();
+-      tmp.nodeType = static_cast<HDI::Nnrt::V1_0::NodeType>(value);
+-      tmp.nodeAttr = Convert(static_cast<NodeType>(value), node->primitive_);
+-      tmp.inputIndex = node->input_indices_;
+-      tmp.outputIndex = node->output_indices_;
+-      tmp.quantType = static_cast<HDI::Nnrt::V1_0::QuantType>(node->quant_type_);
+-      nodes.emplace_back(tmp);
+-    }
+-
+-    MS_LOG(INFO) << "Start converting Tensor,Tensor size=" << lite_graph->all_tensors_.size();
+-    // Tensor
+-    allTensors.reserve(lite_graph->all_tensors_.size());
+-    unsigned int tensor_buffer_offset = 0;
+-    uint8_t *mmap_ptr = nullptr;
+-    if (buffer.fd != -1) {
+-      mmap_ptr =
+-        static_cast<uint8_t *>(mmap(nullptr, buffer.bufferSize, PROT_READ | PROT_WRITE, MAP_SHARED, buffer.fd, 0));
+-      if (mmap_ptr == MAP_FAILED) {
+-        MS_LOG(ERROR) << "mmap failed";
+-        return nullptr;
+-      }
+-    }
+-    MS_LOG(INFO) << "Start parsing tensor, mmap buffer size = " << buffer.bufferSize;
+-    for (auto tensor : lite_graph->all_tensors_) {
+-      OHOS::HDI::Nnrt::V1_0::Tensor tmp;
+-      tmp.name = MindIR_Tensor_GetName(tensor);
+-      tmp.dataType = static_cast<HDI::Nnrt::V1_0::HDI::Nnrt::V1_0::DataType>(MindIR_Tensor_GetDataType(tensor));
+-      tmp.dims = MindIR_Tensor_GetDims(tensor);
+-      tmp.format = static_cast<HDI::Nnrt::V1_0::HDI::Nnrt::V1_0::Format>(MindIR_Tensor_GetFormat(tensor));
+-      tmp.data = MindIR_Tensor_GetData(tensor, buffer, mmap_ptr, tensor_buffer_offset);
+-      tmp.quantParams = MindIR_Tensor_GetQuantParams_OHOS(tensor);
+-      allTensors.emplace_back(tmp);
+-      tensor_buffer_offset = tmp.data.offset + tmp.data.dataSize;
+-    }
+-    MS_LOG(INFO) << ("Parsing tensor finish.");
+-    if (buffer.fd != -1) {
+-      auto munmap_res = munmap(mmap_ptr, buffer.bufferSize);
+-      if (munmap_res != 0) {
+-        MS_LOG(ERROR) << "unmap failed.";
+-        return nullptr;
+-      }
+-    }
+-
+-    MS_LOG(INFO) << "Start converting SubGraph,SubGraph size=" << lite_graph->sub_graphs_.size();
+-    // SubGraph
+-    subGraph.reserve(lite_graph->sub_graphs_.size());
+-    for (auto graph : lite_graph->sub_graphs_) {
+-      OHOS::HDI::Nnrt::V1_0::SubGraph tmp;
+-      tmp.name = graph->name_;
+-      tmp.inputIndices = std::vector<uint32_t>(graph->input_indices_);
+-      tmp.outputIndices = std::vector<uint32_t>(graph->output_indices_);
+-      tmp.nodeIndices = std::vector<uint32_t>(graph->node_indices_);
+-      subGraph.emplace_back(tmp);
+-    }
+-
+-    MS_LOG(INFO) << "Start copying model";
+-    auto *ret_model = new (std::nothrow) Model();
+-    if (ret_model == nullptr) {
+-      MS_LOG(ERROR) << "new Model failed.";
+-      return nullptr;
+-    }
+-    ret_model->name = lite_graph->name_;
+-    ret_model->inputIndex = lite_graph->input_indices_;
+-    ret_model->outputIndex = lite_graph->output_indices_;
+-    ret_model->nodes = nodes;
+-    ret_model->allTensors = allTensors;
+-    ret_model->subGraph = subGraph;
+-    MS_LOG(INFO) << "MindIR_LiteGraph_To_Model success";
+-    return ret_model;
+-  } else {
+-    MS_LOG(ERROR) << "lite graph is nullptr";
+-    return nullptr;
+-  }
+-}
+-
+-std::vector<int8_t> ConvertActivation(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Activation();
+-    if (value != nullptr) {
+-      Activation activation{};
+-      activation.activationType =
+-        static_cast<HDI::Nnrt::V1_0::HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      activation.alpha = value->alpha();
+-      activation.minVal = value->min_val();
+-      activation.maxVal = value->max_val();
+-      activation.approximate = value->approximate();
+-      OHOS::MessageParcel data;
+-      (void)ActivationBlockMarshalling(data, activation);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertAddFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_AddFusion();
+-    if (value != nullptr) {
+-      AddFusion add_fusion{};
+-      add_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)AddFusionBlockMarshalling(data, add_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertArgMaxFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ArgMaxFusion();
+-    if (value != nullptr) {
+-      ArgMaxFusion arg_max_fusion{};
+-      arg_max_fusion.axis = value->axis();
+-      arg_max_fusion.topK = value->top_k();
+-      arg_max_fusion.keepDims = value->keep_dims();
+-      arg_max_fusion.outMaxValue = value->out_max_value();
+-      OHOS::MessageParcel data;
+-      (void)ArgMaxFusionBlockMarshalling(data, arg_max_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertAvgPoolFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_AvgPoolFusion();
+-    if (value != nullptr) {
+-      AvgPoolFusion avg_pool_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->strides() == nullptr || value->strides()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->strides()->begin(), value->strides()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      strides.reserve(kNumTwo);
+-      if (value->pad() == nullptr || value->pad()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad()->begin(), value->pad()->end());
+-      }
+-      avg_pool_fusion.kernelSize = kernel_size;
+-      avg_pool_fusion.strides = strides;
+-      avg_pool_fusion.pad = padList;
+-      avg_pool_fusion.padMode = static_cast<HDI::Nnrt::V1_0::PadMode>(value->pad_mode());
+-      avg_pool_fusion.roundMode = static_cast<HDI::Nnrt::V1_0::RoundMode>(value->round_mode());
+-      avg_pool_fusion.format = static_cast<HDI::Nnrt::V1_0::Format>(value->format());
+-      avg_pool_fusion.global = value->global();
+-      avg_pool_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)AvgPoolFusionBlockMarshalling(data, avg_pool_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertBatchToSpaceND(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_BatchToSpaceND();
+-    if (value != nullptr) {
+-      BatchToSpaceND batch_to_space_n_d{};
+-      std::vector<int64_t> blockShape;
+-      blockShape.reserve(kNumTwo);
+-      if (value->block_shape() == nullptr || value->block_shape()->size() < kNumTwo) {
+-        blockShape = {0, 0};
+-      } else {
+-        blockShape = std::vector<int64_t>(value->block_shape()->begin(), value->block_shape()->end());
+-      }
+-      batch_to_space_n_d.blockShape = blockShape;
+-      auto crops = value->crops();
+-      std::vector<std::vector<int64_t>> crops_vec2d;
+-      if (crops->data() == nullptr) {
+-        MS_LOG(ERROR) << "crops_data is nullptr";
+-        crops_vec2d = {{}};
+-      } else {
+-        crops_vec2d.reserve(crops->data()->size());
+-        for (size_t i = 0; i < crops->data()->size(); i++) {
+-          auto vet = crops->data()->Get(i);
+-          crops_vec2d.emplace_back(std::vector<int64_t>(vet->data()->begin(), vet->data()->end()));
+-        }
+-      }
+-      batch_to_space_n_d.crops = crops_vec2d;
+-      OHOS::MessageParcel data;
+-      (void)BatchToSpaceNDBlockMarshalling(data, batch_to_space_n_d);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertBiasAdd(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_BiasAdd();
+-    if (value != nullptr) {
+-      BiasAdd bias_add{};
+-      OHOS::MessageParcel data;
+-      (void)BiasAddBlockMarshalling(data, bias_add);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertCast(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Cast();
+-    if (value != nullptr) {
+-      Cast cast{};
+-      OHOS::MessageParcel data;
+-      (void)CastBlockMarshalling(data, cast);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertConcat(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Concat();
+-    if (value != nullptr) {
+-      Concat concat{};
+-      concat.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)ConcatBlockMarshalling(data, concat);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertConv2DFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Conv2DFusion();
+-    if (value != nullptr) {
+-      Conv2DFusion conv2_d_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->stride() == nullptr || value->stride()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->stride()->begin(), value->stride()->end());
+-      }
+-      std::vector<int64_t> dilation;
+-      dilation.reserve(kNumTwo);
+-      if (value->dilation() == nullptr || value->dilation()->size() < kNumTwo) {
+-        dilation = {};
+-      } else {
+-        dilation = std::vector<int64_t>(value->dilation()->begin(), value->dilation()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      strides.reserve(kNumTwo);
+-      if (value->pad_list() == nullptr || value->pad_list()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad_list()->begin(), value->pad_list()->end());
+-      }
+-      conv2_d_fusion.kernelSize = kernel_size;
+-      conv2_d_fusion.stride = strides;
+-      conv2_d_fusion.dilation = dilation;
+-      conv2_d_fusion.padMode = static_cast<HDI::Nnrt::V1_0::PadMode>(value->pad_mode());
+-      conv2_d_fusion.padList = padList;
+-      conv2_d_fusion.group = value->group();
+-      conv2_d_fusion.inChannel = value->in_channel();
+-      conv2_d_fusion.outChannel = value->out_channel();
+-      conv2_d_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)Conv2DFusionBlockMarshalling(data, conv2_d_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertConv2dTransposeFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Conv2dTransposeFusion();
+-    if (value != nullptr) {
+-      Conv2dTransposeFusion conv2d_transpose_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->stride() == nullptr || value->stride()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->stride()->begin(), value->stride()->end());
+-      }
+-      std::vector<int64_t> dilation;
+-      dilation.reserve(kNumTwo);
+-      if (value->dilation() == nullptr || value->dilation()->size() < kNumTwo) {
+-        dilation = {};
+-      } else {
+-        dilation = std::vector<int64_t>(value->dilation()->begin(), value->dilation()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      strides.reserve(kNumTwo);
+-      if (value->pad_list() == nullptr || value->pad_list()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad_list()->begin(), value->pad_list()->end());
+-      }
+-      std::vector<int64_t> output_paddings;
+-      output_paddings.reserve(kNumTwo);
+-      if (value->output_paddings() == nullptr || value->output_paddings()->size() < kNumTwo) {
+-        output_paddings = {};
+-      } else {
+-        output_paddings = std::vector<int64_t>(value->output_paddings()->begin(), value->output_paddings()->end());
+-      }
+-      conv2d_transpose_fusion.kernelSize = kernel_size;
+-      conv2d_transpose_fusion.stride = strides;
+-      conv2d_transpose_fusion.dilation = dilation;
+-      conv2d_transpose_fusion.padMode = static_cast<HDI::Nnrt::V1_0::PadMode>(value->pad_mode());
+-      conv2d_transpose_fusion.padList = padList;
+-      conv2d_transpose_fusion.group = value->group();
+-      conv2d_transpose_fusion.inChannel = value->in_channel();
+-      conv2d_transpose_fusion.outChannel = value->out_channel();
+-      conv2d_transpose_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      conv2d_transpose_fusion.outputPaddings = output_paddings;
+-      OHOS::MessageParcel data;
+-      (void)Conv2dTransposeFusionBlockMarshalling(data, conv2d_transpose_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertDivFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_DivFusion();
+-    if (value != nullptr) {
+-      DivFusion div_fusion{};
+-      div_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)DivFusionBlockMarshalling(data, div_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertEltwise(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Eltwise();
+-    if (value != nullptr) {
+-      Eltwise eltwise{};
+-      eltwise.mode = static_cast<HDI::Nnrt::V1_0::EltwiseMode>(value->mode());
+-      OHOS::MessageParcel data;
+-      (void)EltwiseBlockMarshalling(data, eltwise);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertExpandDims(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ExpandDims();
+-    if (value != nullptr) {
+-      ExpandDims expand_dims{};
+-      OHOS::MessageParcel data;
+-      (void)ExpandDimsBlockMarshalling(data, expand_dims);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertFill(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Fill();
+-    if (value != nullptr) {
+-      Fill fill{};
+-      OHOS::MessageParcel data;
+-      (void)FillBlockMarshalling(data, fill);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertFullConnection(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_FullConnection();
+-    if (value != nullptr) {
+-      FullConnection full_connection{};
+-      full_connection.hasBias = value->has_bias();
+-      full_connection.useAxis = value->use_axis();
+-      full_connection.axis = value->axis();
+-      full_connection.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)FullConnectionBlockMarshalling(data, full_connection);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertFusedBatchNorm(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_FusedBatchNorm();
+-    if (value != nullptr) {
+-      FusedBatchNorm fused_batch_norm{};
+-      fused_batch_norm.epsilon = value->epsilon();
+-      OHOS::MessageParcel data;
+-      (void)FusedBatchNormBlockMarshalling(data, fused_batch_norm);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertGather(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Gather();
+-    if (value != nullptr) {
+-      Gather gather{};
+-      OHOS::MessageParcel data;
+-      (void)GatherBlockMarshalling(data, gather);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertLayerNormFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_LayerNormFusion();
+-    if (value != nullptr) {
+-      LayerNormFusion layer_norm_fusion{};
+-      layer_norm_fusion.beginNormAxis = value->begin_norm_axis();
+-      layer_norm_fusion.epsilon = value->epsilon();
+-      layer_norm_fusion.elementwiseAffine = value->elementwise_affine();
+-      layer_norm_fusion.beginParamsAxis = value->begin_params_axis();
+-      OHOS::MessageParcel data;
+-      (void)LayerNormFusionBlockMarshalling(data, layer_norm_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertLessEqual(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_LessEqual();
+-    if (value != nullptr) {
+-      LessEqual less_equal{};
+-      OHOS::MessageParcel data;
+-      (void)LessEqualBlockMarshalling(data, less_equal);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMatMulFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_MatMulFusion();
+-    if (value != nullptr) {
+-      MatMulFusion mat_mul_fusion{};
+-      mat_mul_fusion.transposeA = value->transpose_a();
+-      mat_mul_fusion.transposeB = value->transpose_b();
+-      mat_mul_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)MatMulFusionBlockMarshalling(data, mat_mul_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMaximum(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Maximum();
+-    if (value != nullptr) {
+-      Maximum maximum{};
+-      OHOS::MessageParcel data;
+-      (void)MaximumBlockMarshalling(data, maximum);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMaxPoolFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_MaxPoolFusion();
+-    if (value != nullptr) {
+-      MaxPoolFusion max_pool_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->strides() == nullptr || value->strides()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->strides()->begin(), value->strides()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      padList.reserve(kNumFour);
+-      if (value->pad() == nullptr || value->pad()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad()->begin(), value->pad()->end());
+-      }
+-      max_pool_fusion.kernelSize = kernel_size;
+-      max_pool_fusion.strides = strides;
+-      max_pool_fusion.pad = padList;
+-      max_pool_fusion.padMode = static_cast<HDI::Nnrt::V1_0::PadMode>(value->pad_mode());
+-      max_pool_fusion.format = static_cast<HDI::Nnrt::V1_0::Format>(value->format());
+-      max_pool_fusion.global = value->global();
+-      max_pool_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)MaxPoolFusionBlockMarshalling(data, max_pool_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMulFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_MulFusion();
+-    if (value != nullptr) {
+-      MulFusion mul_fusion{};
+-      mul_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)MulFusionBlockMarshalling(data, mul_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertOneHot(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_OneHot();
+-    if (value != nullptr) {
+-      OneHot one_hot{};
+-      one_hot.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)OneHotBlockMarshalling(data, one_hot);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertPadFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_PadFusion();
+-    if (value != nullptr) {
+-      PadFusion pad_fusion{};
+-      auto paddings = value->paddings();
+-      std::vector<std::vector<int64_t>> paddings_vec2d;
+-      if (paddings == nullptr || paddings->data()->size() < kNumTwo) {
+-        paddings_vec2d = {{0}, {0}, {0}, {0}};
+-      } else {
+-        paddings_vec2d.reserve(paddings->data()->size());
+-        for (size_t i = 0; i < paddings->data()->size(); i++) {
+-          auto vet = paddings->data()->Get(i);
+-          paddings_vec2d.emplace_back(std::vector<int64_t>(vet->data()->begin(), vet->data()->end()));
+-        }
+-      }
+-      pad_fusion.paddings = paddings_vec2d;
+-      pad_fusion.paddingMode = static_cast<HDI::Nnrt::V1_0::PaddingMode>(value->padding_mode());
+-      pad_fusion.constantValue = value->constant_value();
+-      OHOS::MessageParcel data;
+-      (void)PadFusionBlockMarshalling(data, pad_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertPowFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_PowFusion();
+-    if (value != nullptr) {
+-      PowFusion pow_fusion{};
+-      pow_fusion.scale = value->scale();
+-      pow_fusion.shift = value->shift();
+-      OHOS::MessageParcel data;
+-      (void)PowFusionBlockMarshalling(data, pow_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertPReLUFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_PReLUFusion();
+-    if (value != nullptr) {
+-      PReLUFusion p_re_l_u_fusion{};
+-      p_re_l_u_fusion.channelShared = value->channel_shared();
+-      OHOS::MessageParcel data;
+-      (void)PReLUFusionBlockMarshalling(data, p_re_l_u_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertQuantDTypeCast(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_QuantDTypeCast();
+-    if (value != nullptr) {
+-      QuantDTypeCast quant_d_type_cast{};
+-      quant_d_type_cast.srcT = value->src_t();
+-      quant_d_type_cast.dstT = value->dst_t();
+-      OHOS::MessageParcel data;
+-      (void)QuantDTypeCastBlockMarshalling(data, quant_d_type_cast);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertReduceFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ReduceFusion();
+-    if (value != nullptr) {
+-      ReduceFusion reduce_fusion{};
+-      reduce_fusion.keepDims = value->keep_dims();
+-      reduce_fusion.mode = static_cast<HDI::Nnrt::V1_0::ReduceMode>(value->mode());
+-      reduce_fusion.reduceToEnd = value->reduce_to_end();
+-      reduce_fusion.coeff = value->coeff();
+-      OHOS::MessageParcel data;
+-      (void)ReduceFusionBlockMarshalling(data, reduce_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertReshape(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Reshape();
+-    if (value != nullptr) {
+-      Reshape reshape{};
+-      OHOS::MessageParcel data;
+-      (void)ReshapeBlockMarshalling(data, reshape);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-
+-std::vector<int8_t> ConvertResize(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Resize();
+-    if (value != nullptr) {
+-      Resize resize{};
+-      resize.method = static_cast<HDI::Nnrt::V1_0::ResizeMethod>(value->method());
+-      resize.newHeight = value->new_height();
+-      resize.newWidth = value->new_width();
+-      resize.preserveAspectRatio = value->preserve_aspect_ratio();
+-      resize.coordinateTransformMode =
+-        static_cast<HDI::Nnrt::V1_0::CoordinateTransformMode>(value->coordinate_transform_mode());
+-      resize.cubicCoeff = value->cubic_coeff();
+-      resize.excludeOutside = value->exclude_outside();
+-      resize.extrapolationValue = value->extrapolation_value();
+-      resize.nearestMode = static_cast<HDI::Nnrt::V1_0::NearestMode>(value->nearest_mode());
+-      OHOS::MessageParcel data;
+-      (void)ResizeBlockMarshalling(data, resize);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertRsqrt(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Rsqrt();
+-    if (value != nullptr) {
+-      Rsqrt rsqrt{};
+-      OHOS::MessageParcel data;
+-      (void)RsqrtBlockMarshalling(data, rsqrt);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertScaleFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ScaleFusion();
+-    if (value != nullptr) {
+-      ScaleFusion scale_fusion{};
+-      scale_fusion.axis = value->axis();
+-      scale_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)ScaleFusionBlockMarshalling(data, scale_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertShape(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Shape();
+-    if (value != nullptr) {
+-      Shape shape{};
+-      OHOS::MessageParcel data;
+-      (void)ShapeBlockMarshalling(data, shape);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSliceFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SliceFusion();
+-    if (value != nullptr) {
+-      SliceFusion slice_fusion{};
+-      std::vector<int64_t> axes;
+-      if (value->axes() == nullptr) {
+-        axes = {1, 2, 3, 4, 5, 6, 7};
+-      } else {
+-        axes = std::vector<int64_t>(value->axes()->begin(), value->axes()->end());
+-      }
+-      slice_fusion.axes = axes;
+-      OHOS::MessageParcel data;
+-      (void)SliceFusionBlockMarshalling(data, slice_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSoftmax(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Softmax();
+-    if (value != nullptr) {
+-      Softmax softmax{};
+-      std::vector<int64_t> axis;
+-      if (value->axis() == nullptr) {
+-        axis = {};
+-      } else {
+-        axis = std::vector<int64_t>(value->axis()->begin(), value->axis()->end());
+-      }
+-      softmax.axis = axis;
+-      OHOS::MessageParcel data;
+-      (void)SoftmaxBlockMarshalling(data, softmax);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSpaceToBatchND(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SpaceToBatchND();
+-    if (value != nullptr) {
+-      SpaceToBatchND space_to_batch_n_d{};
+-      std::vector<int64_t> blockShape;
+-      blockShape.reserve(kNumTwo);
+-      if (value->block_shape() == nullptr || value->block_shape()->size() < kNumTwo) {
+-        blockShape = {0, 0};
+-      } else {
+-        blockShape = std::vector<int64_t>(value->block_shape()->begin(), value->block_shape()->end());
+-      }
+-      space_to_batch_n_d.blockShape = blockShape;
+-      auto paddings = value->paddings();
+-      std::vector<std::vector<int64_t>> paddings_vec2d;
+-      if (paddings == nullptr || paddings->data()->size() == 0 || *(paddings->data()->begin()) == nullptr ||
+-          (*(paddings->data()->begin()))->data() == nullptr) {
+-        paddings_vec2d = {};
+-      } else {
+-        paddings_vec2d.reserve(paddings->data()->size());
+-        for (size_t i = 0; i < paddings->data()->size(); i++) {
+-          auto vet = paddings->data()->Get(i);
+-          paddings_vec2d.emplace_back(std::vector<int64_t>(vet->data()->begin(), vet->data()->end()));
+-        }
+-      }
+-      space_to_batch_n_d.paddings = paddings_vec2d;
+-      OHOS::MessageParcel data;
+-      (void)SpaceToBatchNDBlockMarshalling(data, space_to_batch_n_d);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSplit(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Split();
+-    if (value != nullptr) {
+-      Split split{};
+-      split.outputNum = value->output_num();
+-      std::vector<int64_t> sizeSplits;
+-      sizeSplits.reserve(split.outputNum);
+-      if (value->size_splits() == nullptr || value->size_splits()->size() <= static_cast<uint32_t>(split.outputNum)) {
+-        sizeSplits = {};
+-      } else {
+-        sizeSplits = std::vector<int64_t>(value->size_splits()->begin(), value->size_splits()->end());
+-      }
+-      split.sizeSplits = sizeSplits;
+-      split.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)SplitBlockMarshalling(data, split);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSqrt(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Sqrt();
+-    if (value != nullptr) {
+-      Sqrt sqrt{};
+-      OHOS::MessageParcel data;
+-      (void)SqrtBlockMarshalling(data, sqrt);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSquaredDifference(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SquaredDifference();
+-    if (value != nullptr) {
+-      SquaredDifference squared_difference{};
+-      OHOS::MessageParcel data;
+-      (void)SquaredDifferenceBlockMarshalling(data, squared_difference);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSqueeze(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Squeeze();
+-    if (value != nullptr) {
+-      Squeeze squeeze{};
+-      std::vector<int64_t> axis;
+-      if (value->axis() == nullptr) {
+-        axis = {};
+-      } else {
+-        axis = std::vector<int64_t>(value->axis()->begin(), value->axis()->end());
+-      }
+-      squeeze.axis = axis;
+-      OHOS::MessageParcel data;
+-      (void)SqueezeBlockMarshalling(data, squeeze);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertStack(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Stack();
+-    if (value != nullptr) {
+-      Stack stack{};
+-      stack.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)StackBlockMarshalling(data, stack);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertStridedSlice(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_StridedSlice();
+-    if (value != nullptr) {
+-      StridedSlice strided_slice{};
+-      strided_slice.beginMask = value->begin_mask();
+-      strided_slice.endMask = value->end_mask();
+-      strided_slice.ellipsisMask = value->ellipsis_mask();
+-      strided_slice.newAxisMask = value->new_axis_mask();
+-      strided_slice.shrinkAxisMask = value->shrink_axis_mask();
+-      OHOS::MessageParcel data;
+-      (void)StridedSliceBlockMarshalling(data, strided_slice);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSubFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SubFusion();
+-    if (value != nullptr) {
+-      SubFusion sub_fusion{};
+-      sub_fusion.activationType = static_cast<HDI::Nnrt::V1_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)SubFusionBlockMarshalling(data, sub_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertTileFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_TileFusion();
+-    if (value != nullptr) {
+-      TileFusion tile_fusion{};
+-      std::vector<int64_t> dims;
+-      dims.reserve(kNumEight);
+-      if (value->dims() == nullptr) {
+-        dims = {0, 0, 0, 0, 0, 0, 0, 0};
+-      } else {
+-        dims = std::vector<int64_t>(value->dims()->begin(), value->dims()->end());
+-      }
+-      tile_fusion.dims = dims;
+-      OHOS::MessageParcel data;
+-      (void)TileFusionBlockMarshalling(data, tile_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertTopKFusion(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_TopKFusion();
+-    if (value != nullptr) {
+-      TopKFusion top_k_fusion{};
+-      top_k_fusion.sorted = value->sorted();
+-      top_k_fusion.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)TopKFusionBlockMarshalling(data, top_k_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertTranspose(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Transpose();
+-    if (value != nullptr) {
+-      Transpose transpose{};
+-      OHOS::MessageParcel data;
+-      (void)TransposeBlockMarshalling(data, transpose);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertUnsqueeze(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Unsqueeze();
+-    if (value != nullptr) {
+-      Unsqueeze unsqueeze{};
+-      std::vector<int64_t> axis;
+-      axis.reserve(kNumEight);
+-      if (value->axis() == nullptr) {
+-        axis = {0, 0, 0, 0};
+-      } else {
+-        axis = std::vector<int64_t>(value->axis()->begin(), value->axis()->end());
+-      }
+-      unsqueeze.axis = axis;
+-      OHOS::MessageParcel data;
+-      (void)UnsqueezeBlockMarshalling(data, unsqueeze);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-
+-std::vector<int8_t> Convert(NodeType type, PrimitivePtr primitive) {
+-  switch (type) {
+-    case NODE_TYPE_ACTIVATION:
+-      return ConvertActivation(primitive);
+-      break;
+-    case NODE_TYPE_ADD_FUSION:
+-      return ConvertAddFusion(primitive);
+-      break;
+-    case NODE_TYPE_ARGMAX_FUSION:
+-      return ConvertArgMaxFusion(primitive);
+-      break;
+-    case NODE_TYPE_AVG_POOL_FUSION:
+-      return ConvertAvgPoolFusion(primitive);
+-      break;
+-    case NODE_TYPE_BATCH_TO_SPACE_ND:
+-      return ConvertBatchToSpaceND(primitive);
+-      break;
+-    case NODE_TYPE_BIAS_ADD:
+-      return ConvertBiasAdd(primitive);
+-      break;
+-    case NODE_TYPE_CAST:
+-      return ConvertCast(primitive);
+-      break;
+-    case NODE_TYPE_CONCAT:
+-      return ConvertConcat(primitive);
+-      break;
+-    case NODE_TYPE_CONV2D_FUSION:
+-      return ConvertConv2DFusion(primitive);
+-      break;
+-    case NODE_TYPE_CONV2D_TRANSPOSE_FUSION:
+-      return ConvertConv2dTransposeFusion(primitive);
+-      break;
+-    case NODE_TYPE_DIV_FUSION:
+-      return ConvertDivFusion(primitive);
+-      break;
+-    case NODE_TYPE_ELTWISE:
+-      return ConvertEltwise(primitive);
+-      break;
+-    case NODE_TYPE_EXPAND_DIMS:
+-      return ConvertExpandDims(primitive);
+-      break;
+-    case NODE_TYPE_FILL:
+-      return ConvertFill(primitive);
+-      break;
+-    case NODE_TYPE_FULL_CONNECTION:
+-      return ConvertFullConnection(primitive);
+-      break;
+-    case NODE_TYPE_FUSED_BATCH_NORM:
+-      return ConvertFusedBatchNorm(primitive);
+-      break;
+-    case NODE_TYPE_GATHER:
+-      return ConvertGather(primitive);
+-      break;
+-    case NODE_TYPE_LAYER_NORM_FUSION:
+-      return ConvertLayerNormFusion(primitive);
+-      break;
+-    case NODE_TYPE_LESS_EQUAL:
+-      return ConvertLessEqual(primitive);
+-      break;
+-    case NODE_TYPE_MATMUL_FUSION:
+-      return ConvertMatMulFusion(primitive);
+-      break;
+-    case NODE_TYPE_MAXIMUM:
+-      return ConvertMaximum(primitive);
+-      break;
+-    case NODE_TYPE_MAX_POOL_FUSION:
+-      return ConvertMaxPoolFusion(primitive);
+-      break;
+-    case NODE_TYPE_MUL_FUSION:
+-      return ConvertMulFusion(primitive);
+-      break;
+-    case NODE_TYPE_ONE_HOT:
+-      return ConvertOneHot(primitive);
+-      break;
+-    case NODE_TYPE_PAD_FUSION:
+-      return ConvertPadFusion(primitive);
+-      break;
+-    case NODE_TYPE_POW_FUSION:
+-      return ConvertPowFusion(primitive);
+-      break;
+-    case NODE_TYPE_PRELU_FUSION:
+-      return ConvertPReLUFusion(primitive);
+-      break;
+-    case NODE_TYPE_QUANT_DTYPE_CAST:
+-      return ConvertQuantDTypeCast(primitive);
+-      break;
+-    case NODE_TYPE_REDUCE_FUSION:
+-      return ConvertReduceFusion(primitive);
+-      break;
+-    case NODE_TYPE_RESHAPE:
+-      return ConvertReshape(primitive);
+-      break;
+-    case NODE_TYPE_RESIZE:
+-      return ConvertResize(primitive);
+-      break;
+-    case NODE_TYPE_RSQRT:
+-      return ConvertRsqrt(primitive);
+-      break;
+-    case NODE_TYPE_SCALE_FUSION:
+-      return ConvertScaleFusion(primitive);
+-      break;
+-    case NODE_TYPE_SHAPE:
+-      return ConvertShape(primitive);
+-      break;
+-    case NODE_TYPE_SLICE_FUSION:
+-      return ConvertSliceFusion(primitive);
+-      break;
+-    case NODE_TYPE_SOFTMAX:
+-      return ConvertSoftmax(primitive);
+-      break;
+-    case NODE_TYPE_SPACE_TO_BATCH_ND:
+-      return ConvertSpaceToBatchND(primitive);
+-      break;
+-    case NODE_TYPE_SPLIT:
+-      return ConvertSplit(primitive);
+-      break;
+-    case NODE_TYPE_SQRT:
+-      return ConvertSqrt(primitive);
+-      break;
+-    case NODE_TYPE_SQUARED_DIFFERENCE:
+-      return ConvertSquaredDifference(primitive);
+-      break;
+-    case NODE_TYPE_SQUEEZE:
+-      return ConvertSqueeze(primitive);
+-      break;
+-    case NODE_TYPE_STACK:
+-      return ConvertStack(primitive);
+-      break;
+-    case NODE_TYPE_STRIDED_SLICE:
+-      return ConvertStridedSlice(primitive);
+-      break;
+-    case NODE_TYPE_SUB_FUSION:
+-      return ConvertSubFusion(primitive);
+-      break;
+-    case NODE_TYPE_TILE_FUSION:
+-      return ConvertTileFusion(primitive);
+-      break;
+-    case NODE_TYPE_TOPK_FUSION:
+-      return ConvertTopKFusion(primitive);
+-      break;
+-    case NODE_TYPE_TRANSPOSE:
+-      return ConvertTranspose(primitive);
+-      break;
+-    case NODE_TYPE_UNSQUEEZE:
+-      return ConvertUnsqueeze(primitive);
+-      break;
+-    default:
+-      return {};
+-  }
+-}
+-
+-}  // namespace lite
+-}  // namespace mindspore
+\ No newline at end of file
+diff --git a/mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model_v2_0.cc b/mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model_v2_0.cc
+deleted file mode 100644
+index 4e109eff..00000000
+--- a/mindspore/lite/mindir/src/mindir_nnrt_lite_graph_to_model_v2_0.cc
++++ /dev/null
+@@ -1,1497 +0,0 @@
+-/**
+- * Copyright 2021 Huawei Technologies Co., Ltd
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- * http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-#include "mindir.h"
+-#include <vector>
+-#include <algorithm>
+-#include <sys/mman.h>
+-#include "src/common/log.h"
+-#include "lite_graph.h"
+-#include "schema/model_generated.h"
+-#include "mindir_types.h"
+-#include "message_parcel.h"
+-#include "nnrt/v2_0/nnrt_types.h"
+-#include "nnrt/v2_0/node_attr_types.h"
+-#include "nnrt/v2_0/model_types.h"
+-
+-using namespace OHOS::HDI::Nnrt::V2_0;
+-namespace mindspore {
+-namespace lite {
+-
+-constexpr size_t kNumTwo = 2;
+-constexpr size_t kNumFour = 4;
+-constexpr size_t kNumEight = 8;
+-
+-inline std::vector<OHOS::HDI::Nnrt::V2_0::QuantParam> MindIR_Tensor_GetQuantParams_OHOS_V2_0(TensorPtr tensor) {
+-  if (tensor != nullptr) {
+-    auto value = static_cast<schema::Tensor *>(tensor);
+-
+-    if (value != nullptr) {
+-      std::vector<OHOS::HDI::Nnrt::V2_0::QuantParam> result;
+-      auto src = value->quantParams();
+-      if (src == nullptr) {
+-        return {};
+-      }
+-      size_t size = src->size();
+-      result.reserve(src->size());
+-      for (size_t i = 0; i < size; i++) {
+-        auto tmp = src->Get(i);
+-        OHOS::HDI::Nnrt::V2_0::QuantParam quantParam{tmp->numBits(), tmp->zeroPoint(), tmp->scale()};
+-        result.emplace_back(quantParam);
+-      }
+-      return result;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-
+-void MindIR_Model_Destroy(OHOS::HDI::Nnrt::V2_0::Model **model) {
+-  if (model != nullptr) {
+-    auto model_data = *model;
+-    if (model_data != nullptr) {
+-      delete (model_data);
+-      *model = nullptr;
+-    } else {
+-      MS_LOG(ERROR) << "*model is nullptr, desrtoy model fail.";
+-    }
+-  }
+-}
+-
+-std::vector<int8_t> ConvertActivation_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Activation();
+-    if (value != nullptr) {
+-      Activation activation{};
+-      activation.activationType =
+-        static_cast<HDI::Nnrt::V2_0::HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      activation.alpha = value->alpha();
+-      activation.minVal = value->min_val();
+-      activation.maxVal = value->max_val();
+-      activation.approximate = value->approximate();
+-      OHOS::MessageParcel data;
+-      (void)ActivationBlockMarshalling(data, activation);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertAddFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_AddFusion();
+-    if (value != nullptr) {
+-      AddFusion add_fusion{};
+-      add_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)AddFusionBlockMarshalling(data, add_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertArgMaxFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ArgMaxFusion();
+-    if (value != nullptr) {
+-      ArgMaxFusion arg_max_fusion{};
+-      arg_max_fusion.axis = value->axis();
+-      arg_max_fusion.topK = value->top_k();
+-      arg_max_fusion.keepDims = value->keep_dims();
+-      arg_max_fusion.outMaxValue = value->out_max_value();
+-      OHOS::MessageParcel data;
+-      (void)ArgMaxFusionBlockMarshalling(data, arg_max_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertAvgPoolFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_AvgPoolFusion();
+-    if (value != nullptr) {
+-      AvgPoolFusion avg_pool_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->strides() == nullptr || value->strides()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->strides()->begin(), value->strides()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      strides.reserve(kNumTwo);
+-      if (value->pad() == nullptr || value->pad()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad()->begin(), value->pad()->end());
+-      }
+-      avg_pool_fusion.kernelSize = kernel_size;
+-      avg_pool_fusion.strides = strides;
+-      avg_pool_fusion.pad = padList;
+-      avg_pool_fusion.padMode = static_cast<HDI::Nnrt::V2_0::PadMode>(value->pad_mode());
+-      avg_pool_fusion.roundMode = static_cast<HDI::Nnrt::V2_0::RoundMode>(value->round_mode());
+-      avg_pool_fusion.format = static_cast<HDI::Nnrt::V2_0::Format>(value->format());
+-      avg_pool_fusion.global = value->global();
+-      avg_pool_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)AvgPoolFusionBlockMarshalling(data, avg_pool_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertBatchToSpaceND_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_BatchToSpaceND();
+-    if (value != nullptr) {
+-      BatchToSpaceND batch_to_space_n_d{};
+-      std::vector<int64_t> blockShape;
+-      blockShape.reserve(kNumTwo);
+-      if (value->block_shape() == nullptr || value->block_shape()->size() < kNumTwo) {
+-        blockShape = {0, 0};
+-      } else {
+-        blockShape = std::vector<int64_t>(value->block_shape()->begin(), value->block_shape()->end());
+-      }
+-      batch_to_space_n_d.blockShape = blockShape;
+-      auto crops = value->crops();
+-      std::vector<std::vector<int64_t>> crops_vec2d;
+-      if (crops->data() == nullptr) {
+-        MS_LOG(ERROR) << "crops_data is nullptr";
+-        crops_vec2d = {{}};
+-      } else {
+-        crops_vec2d.reserve(crops->data()->size());
+-        for (size_t i = 0; i < crops->data()->size(); i++) {
+-          auto vet = crops->data()->Get(i);
+-          crops_vec2d.emplace_back(std::vector<int64_t>(vet->data()->begin(), vet->data()->end()));
+-        }
+-      }
+-      batch_to_space_n_d.crops = crops_vec2d;
+-      OHOS::MessageParcel data;
+-      (void)BatchToSpaceNDBlockMarshalling(data, batch_to_space_n_d);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertBiasAdd_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_BiasAdd();
+-    if (value != nullptr) {
+-      BiasAdd bias_add{};
+-      OHOS::MessageParcel data;
+-      (void)BiasAddBlockMarshalling(data, bias_add);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertCast_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Cast();
+-    if (value != nullptr) {
+-      Cast cast{};
+-      OHOS::MessageParcel data;
+-      (void)CastBlockMarshalling(data, cast);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertConcat_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Concat();
+-    if (value != nullptr) {
+-      Concat concat{};
+-      concat.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)ConcatBlockMarshalling(data, concat);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertConv2DFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Conv2DFusion();
+-    if (value != nullptr) {
+-      Conv2DFusion conv2_d_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->stride() == nullptr || value->stride()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->stride()->begin(), value->stride()->end());
+-      }
+-      std::vector<int64_t> dilation;
+-      dilation.reserve(kNumTwo);
+-      if (value->dilation() == nullptr || value->dilation()->size() < kNumTwo) {
+-        dilation = {};
+-      } else {
+-        dilation = std::vector<int64_t>(value->dilation()->begin(), value->dilation()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      strides.reserve(kNumTwo);
+-      if (value->pad_list() == nullptr || value->pad_list()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad_list()->begin(), value->pad_list()->end());
+-      }
+-      conv2_d_fusion.kernelSize = kernel_size;
+-      conv2_d_fusion.stride = strides;
+-      conv2_d_fusion.dilation = dilation;
+-      conv2_d_fusion.padMode = static_cast<HDI::Nnrt::V2_0::PadMode>(value->pad_mode());
+-      conv2_d_fusion.padList = padList;
+-      conv2_d_fusion.group = value->group();
+-      conv2_d_fusion.inChannel = value->in_channel();
+-      conv2_d_fusion.outChannel = value->out_channel();
+-      conv2_d_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)Conv2DFusionBlockMarshalling(data, conv2_d_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertConv2dTransposeFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Conv2dTransposeFusion();
+-    if (value != nullptr) {
+-      Conv2dTransposeFusion conv2d_transpose_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->stride() == nullptr || value->stride()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->stride()->begin(), value->stride()->end());
+-      }
+-      std::vector<int64_t> dilation;
+-      dilation.reserve(kNumTwo);
+-      if (value->dilation() == nullptr || value->dilation()->size() < kNumTwo) {
+-        dilation = {};
+-      } else {
+-        dilation = std::vector<int64_t>(value->dilation()->begin(), value->dilation()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      strides.reserve(kNumTwo);
+-      if (value->pad_list() == nullptr || value->pad_list()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad_list()->begin(), value->pad_list()->end());
+-      }
+-      std::vector<int64_t> output_paddings;
+-      output_paddings.reserve(kNumTwo);
+-      if (value->output_paddings() == nullptr || value->output_paddings()->size() < kNumTwo) {
+-        output_paddings = {};
+-      } else {
+-        output_paddings = std::vector<int64_t>(value->output_paddings()->begin(), value->output_paddings()->end());
+-      }
+-      conv2d_transpose_fusion.kernelSize = kernel_size;
+-      conv2d_transpose_fusion.stride = strides;
+-      conv2d_transpose_fusion.dilation = dilation;
+-      conv2d_transpose_fusion.padMode = static_cast<HDI::Nnrt::V2_0::PadMode>(value->pad_mode());
+-      conv2d_transpose_fusion.padList = padList;
+-      conv2d_transpose_fusion.group = value->group();
+-      conv2d_transpose_fusion.inChannel = value->in_channel();
+-      conv2d_transpose_fusion.outChannel = value->out_channel();
+-      conv2d_transpose_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      conv2d_transpose_fusion.outputPaddings = output_paddings;
+-      OHOS::MessageParcel data;
+-      (void)Conv2dTransposeFusionBlockMarshalling(data, conv2d_transpose_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertDivFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_DivFusion();
+-    if (value != nullptr) {
+-      DivFusion div_fusion{};
+-      div_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)DivFusionBlockMarshalling(data, div_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertEltwise_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Eltwise();
+-    if (value != nullptr) {
+-      Eltwise eltwise{};
+-      eltwise.mode = static_cast<HDI::Nnrt::V2_0::EltwiseMode>(value->mode());
+-      OHOS::MessageParcel data;
+-      (void)EltwiseBlockMarshalling(data, eltwise);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertExpandDims_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ExpandDims();
+-    if (value != nullptr) {
+-      ExpandDims expand_dims{};
+-      OHOS::MessageParcel data;
+-      (void)ExpandDimsBlockMarshalling(data, expand_dims);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertFill_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Fill();
+-    if (value != nullptr) {
+-      Fill fill{};
+-      OHOS::MessageParcel data;
+-      (void)FillBlockMarshalling(data, fill);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertFullConnection_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_FullConnection();
+-    if (value != nullptr) {
+-      FullConnection full_connection{};
+-      full_connection.hasBias = value->has_bias();
+-      full_connection.useAxis = value->use_axis();
+-      full_connection.axis = value->axis();
+-      full_connection.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)FullConnectionBlockMarshalling(data, full_connection);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertFusedBatchNorm_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_FusedBatchNorm();
+-    if (value != nullptr) {
+-      FusedBatchNorm fused_batch_norm{};
+-      fused_batch_norm.epsilon = value->epsilon();
+-      OHOS::MessageParcel data;
+-      (void)FusedBatchNormBlockMarshalling(data, fused_batch_norm);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertGather_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Gather();
+-    if (value != nullptr) {
+-      Gather gather{};
+-      OHOS::MessageParcel data;
+-      (void)GatherBlockMarshalling(data, gather);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertLayerNormFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_LayerNormFusion();
+-    if (value != nullptr) {
+-      LayerNormFusion layer_norm_fusion{};
+-      layer_norm_fusion.beginNormAxis = value->begin_norm_axis();
+-      layer_norm_fusion.epsilon = value->epsilon();
+-      layer_norm_fusion.elementwiseAffine = value->elementwise_affine();
+-      layer_norm_fusion.beginParamsAxis = value->begin_params_axis();
+-      OHOS::MessageParcel data;
+-      (void)LayerNormFusionBlockMarshalling(data, layer_norm_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertLessEqual_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_LessEqual();
+-    if (value != nullptr) {
+-      LessEqual less_equal{};
+-      OHOS::MessageParcel data;
+-      (void)LessEqualBlockMarshalling(data, less_equal);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMatMulFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_MatMulFusion();
+-    if (value != nullptr) {
+-      MatMulFusion mat_mul_fusion{};
+-      mat_mul_fusion.transposeA = value->transpose_a();
+-      mat_mul_fusion.transposeB = value->transpose_b();
+-      mat_mul_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)MatMulFusionBlockMarshalling(data, mat_mul_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMaximum_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Maximum();
+-    if (value != nullptr) {
+-      Maximum maximum{};
+-      OHOS::MessageParcel data;
+-      (void)MaximumBlockMarshalling(data, maximum);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMaxPoolFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_MaxPoolFusion();
+-    if (value != nullptr) {
+-      MaxPoolFusion max_pool_fusion{};
+-      std::vector<int64_t> kernel_size;
+-      kernel_size.reserve(kNumTwo);
+-      if (value->kernel_size() == nullptr || value->kernel_size()->size() < kNumTwo) {
+-        kernel_size = {};
+-      } else {
+-        kernel_size = std::vector<int64_t>(value->kernel_size()->begin(), value->kernel_size()->end());
+-      }
+-      std::vector<int64_t> strides;
+-      strides.reserve(kNumTwo);
+-      if (value->strides() == nullptr || value->strides()->size() < kNumTwo) {
+-        strides = {};
+-      } else {
+-        strides = std::vector<int64_t>(value->strides()->begin(), value->strides()->end());
+-      }
+-      std::vector<int64_t> padList;
+-      padList.reserve(kNumFour);
+-      if (value->pad() == nullptr || value->pad()->size() < kNumFour) {
+-        padList = {};
+-      } else {
+-        padList = std::vector<int64_t>(value->pad()->begin(), value->pad()->end());
+-      }
+-      max_pool_fusion.kernelSize = kernel_size;
+-      max_pool_fusion.strides = strides;
+-      max_pool_fusion.pad = padList;
+-      max_pool_fusion.padMode = static_cast<HDI::Nnrt::V2_0::PadMode>(value->pad_mode());
+-      max_pool_fusion.format = static_cast<HDI::Nnrt::V2_0::Format>(value->format());
+-      max_pool_fusion.global = value->global();
+-      max_pool_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      max_pool_fusion.roundMode = static_cast<HDI::Nnrt::V2_0::RoundMode>(value->round_mode());
+-      OHOS::MessageParcel data;
+-      (void)MaxPoolFusionBlockMarshalling(data, max_pool_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertMulFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_MulFusion();
+-    if (value != nullptr) {
+-      MulFusion mul_fusion{};
+-      mul_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)MulFusionBlockMarshalling(data, mul_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertOneHot_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_OneHot();
+-    if (value != nullptr) {
+-      OneHot one_hot{};
+-      one_hot.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)OneHotBlockMarshalling(data, one_hot);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertPadFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_PadFusion();
+-    if (value != nullptr) {
+-      PadFusion pad_fusion{};
+-      auto paddings = value->paddings();
+-      std::vector<std::vector<int64_t>> paddings_vec2d;
+-      if (paddings == nullptr || paddings->data()->size() < kNumTwo) {
+-        paddings_vec2d = {{0}, {0}, {0}, {0}};
+-      } else {
+-        paddings_vec2d.reserve(paddings->data()->size());
+-        for (size_t i = 0; i < paddings->data()->size(); i++) {
+-          auto vet = paddings->data()->Get(i);
+-          paddings_vec2d.emplace_back(std::vector<int64_t>(vet->data()->begin(), vet->data()->end()));
+-        }
+-      }
+-      pad_fusion.paddings = paddings_vec2d;
+-      pad_fusion.paddingMode = static_cast<HDI::Nnrt::V2_0::PaddingMode>(value->padding_mode());
+-      pad_fusion.constantValue = value->constant_value();
+-      OHOS::MessageParcel data;
+-      (void)PadFusionBlockMarshalling(data, pad_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertPowFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_PowFusion();
+-    if (value != nullptr) {
+-      PowFusion pow_fusion{};
+-      pow_fusion.scale = value->scale();
+-      pow_fusion.shift = value->shift();
+-      OHOS::MessageParcel data;
+-      (void)PowFusionBlockMarshalling(data, pow_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertPReLUFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_PReLUFusion();
+-    if (value != nullptr) {
+-      PReLUFusion p_re_l_u_fusion{};
+-      p_re_l_u_fusion.channelShared = value->channel_shared();
+-      OHOS::MessageParcel data;
+-      (void)PReLUFusionBlockMarshalling(data, p_re_l_u_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertQuantDTypeCast_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_QuantDTypeCast();
+-    if (value != nullptr) {
+-      QuantDTypeCast quant_d_type_cast{};
+-      quant_d_type_cast.srcT = value->src_t();
+-      quant_d_type_cast.dstT = value->dst_t();
+-      OHOS::MessageParcel data;
+-      (void)QuantDTypeCastBlockMarshalling(data, quant_d_type_cast);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertReduceFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ReduceFusion();
+-    if (value != nullptr) {
+-      ReduceFusion reduce_fusion{};
+-      reduce_fusion.keepDims = value->keep_dims();
+-      reduce_fusion.mode = static_cast<HDI::Nnrt::V2_0::ReduceMode>(value->mode());
+-      reduce_fusion.reduceToEnd = value->reduce_to_end();
+-      reduce_fusion.coeff = value->coeff();
+-      OHOS::MessageParcel data;
+-      (void)ReduceFusionBlockMarshalling(data, reduce_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertReshape_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Reshape();
+-    if (value != nullptr) {
+-      Reshape reshape{};
+-      OHOS::MessageParcel data;
+-      (void)ReshapeBlockMarshalling(data, reshape);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-
+-std::vector<int8_t> ConvertResize_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Resize();
+-    if (value != nullptr) {
+-      Resize resize{};
+-      resize.method = static_cast<HDI::Nnrt::V2_0::ResizeMethod>(value->method());
+-      resize.newHeight = value->new_height();
+-      resize.newWidth = value->new_width();
+-      resize.preserveAspectRatio = value->preserve_aspect_ratio();
+-      resize.coordinateTransformMode =
+-        static_cast<HDI::Nnrt::V2_0::CoordinateTransformMode>(value->coordinate_transform_mode());
+-      resize.cubicCoeff = value->cubic_coeff();
+-      resize.excludeOutside = value->exclude_outside();
+-      resize.extrapolationValue = value->extrapolation_value();
+-      resize.nearestMode = static_cast<HDI::Nnrt::V2_0::NearestMode>(value->nearest_mode());
+-      OHOS::MessageParcel data;
+-      (void)ResizeBlockMarshalling(data, resize);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertRsqrt_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Rsqrt();
+-    if (value != nullptr) {
+-      Rsqrt rsqrt{};
+-      OHOS::MessageParcel data;
+-      (void)RsqrtBlockMarshalling(data, rsqrt);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertScaleFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_ScaleFusion();
+-    if (value != nullptr) {
+-      ScaleFusion scale_fusion{};
+-      scale_fusion.axis = value->axis();
+-      scale_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)ScaleFusionBlockMarshalling(data, scale_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertShape_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Shape();
+-    if (value != nullptr) {
+-      Shape shape{};
+-      OHOS::MessageParcel data;
+-      (void)ShapeBlockMarshalling(data, shape);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSliceFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SliceFusion();
+-    if (value != nullptr) {
+-      SliceFusion slice_fusion{};
+-      std::vector<int64_t> axes;
+-      if (value->axes() == nullptr) {
+-        axes = {1, 2, 3, 4, 5, 6, 7};
+-      } else {
+-        axes = std::vector<int64_t>(value->axes()->begin(), value->axes()->end());
+-      }
+-      slice_fusion.axes = axes;
+-      OHOS::MessageParcel data;
+-      (void)SliceFusionBlockMarshalling(data, slice_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSoftmax_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Softmax();
+-    if (value != nullptr) {
+-      Softmax softmax{};
+-      std::vector<int64_t> axis;
+-      if (value->axis() == nullptr) {
+-        axis = {};
+-      } else {
+-        axis = std::vector<int64_t>(value->axis()->begin(), value->axis()->end());
+-      }
+-      softmax.axis = axis;
+-      OHOS::MessageParcel data;
+-      (void)SoftmaxBlockMarshalling(data, softmax);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSpaceToBatchND_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SpaceToBatchND();
+-    if (value != nullptr) {
+-      SpaceToBatchND space_to_batch_n_d{};
+-      std::vector<int64_t> blockShape;
+-      blockShape.reserve(kNumTwo);
+-      if (value->block_shape() == nullptr || value->block_shape()->size() < kNumTwo) {
+-        blockShape = {0, 0};
+-      } else {
+-        blockShape = std::vector<int64_t>(value->block_shape()->begin(), value->block_shape()->end());
+-      }
+-      space_to_batch_n_d.blockShape = blockShape;
+-      auto paddings = value->paddings();
+-      std::vector<std::vector<int64_t>> paddings_vec2d;
+-      if (paddings == nullptr || paddings->data()->size() == 0 || *(paddings->data()->begin()) == nullptr ||
+-          (*(paddings->data()->begin()))->data() == nullptr) {
+-        paddings_vec2d = {};
+-      } else {
+-        paddings_vec2d.reserve(paddings->data()->size());
+-        for (size_t i = 0; i < paddings->data()->size(); i++) {
+-          auto vet = paddings->data()->Get(i);
+-          paddings_vec2d.emplace_back(std::vector<int64_t>(vet->data()->begin(), vet->data()->end()));
+-        }
+-      }
+-      space_to_batch_n_d.paddings = paddings_vec2d;
+-      OHOS::MessageParcel data;
+-      (void)SpaceToBatchNDBlockMarshalling(data, space_to_batch_n_d);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSplit_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Split();
+-    if (value != nullptr) {
+-      Split split{};
+-      split.outputNum = value->output_num();
+-      std::vector<int64_t> sizeSplits;
+-      sizeSplits.reserve(split.outputNum);
+-      if (value->size_splits() == nullptr || value->size_splits()->size() <= static_cast<uint32_t>(split.outputNum)) {
+-        sizeSplits = {};
+-      } else {
+-        sizeSplits = std::vector<int64_t>(value->size_splits()->begin(), value->size_splits()->end());
+-      }
+-      split.sizeSplits = sizeSplits;
+-      split.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)SplitBlockMarshalling(data, split);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSqrt_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Sqrt();
+-    if (value != nullptr) {
+-      Sqrt sqrt{};
+-      OHOS::MessageParcel data;
+-      (void)SqrtBlockMarshalling(data, sqrt);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSquaredDifference_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SquaredDifference();
+-    if (value != nullptr) {
+-      SquaredDifference squared_difference{};
+-      OHOS::MessageParcel data;
+-      (void)SquaredDifferenceBlockMarshalling(data, squared_difference);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSqueeze_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Squeeze();
+-    if (value != nullptr) {
+-      Squeeze squeeze{};
+-      std::vector<int64_t> axis;
+-      if (value->axis() == nullptr) {
+-        axis = {};
+-      } else {
+-        axis = std::vector<int64_t>(value->axis()->begin(), value->axis()->end());
+-      }
+-      squeeze.axis = axis;
+-      OHOS::MessageParcel data;
+-      (void)SqueezeBlockMarshalling(data, squeeze);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertStack_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Stack();
+-    if (value != nullptr) {
+-      Stack stack{};
+-      stack.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)StackBlockMarshalling(data, stack);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertStridedSlice_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_StridedSlice();
+-    if (value != nullptr) {
+-      StridedSlice strided_slice{};
+-      strided_slice.beginMask = value->begin_mask();
+-      strided_slice.endMask = value->end_mask();
+-      strided_slice.ellipsisMask = value->ellipsis_mask();
+-      strided_slice.newAxisMask = value->new_axis_mask();
+-      strided_slice.shrinkAxisMask = value->shrink_axis_mask();
+-      OHOS::MessageParcel data;
+-      (void)StridedSliceBlockMarshalling(data, strided_slice);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertSubFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_SubFusion();
+-    if (value != nullptr) {
+-      SubFusion sub_fusion{};
+-      sub_fusion.activationType = static_cast<HDI::Nnrt::V2_0::ActivationType>(value->activation_type());
+-      OHOS::MessageParcel data;
+-      (void)SubFusionBlockMarshalling(data, sub_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertTileFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_TileFusion();
+-    if (value != nullptr) {
+-      TileFusion tile_fusion{};
+-      std::vector<int64_t> dims;
+-      dims.reserve(kNumEight);
+-      if (value->dims() == nullptr) {
+-        dims = {0, 0, 0, 0, 0, 0, 0, 0};
+-      } else {
+-        dims = std::vector<int64_t>(value->dims()->begin(), value->dims()->end());
+-      }
+-      tile_fusion.dims = dims;
+-      OHOS::MessageParcel data;
+-      (void)TileFusionBlockMarshalling(data, tile_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertTopKFusion_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_TopKFusion();
+-    if (value != nullptr) {
+-      TopKFusion top_k_fusion{};
+-      top_k_fusion.sorted = value->sorted();
+-      top_k_fusion.axis = value->axis();
+-      OHOS::MessageParcel data;
+-      (void)TopKFusionBlockMarshalling(data, top_k_fusion);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertTranspose_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Transpose();
+-    if (value != nullptr) {
+-      Transpose transpose{};
+-      OHOS::MessageParcel data;
+-      (void)TransposeBlockMarshalling(data, transpose);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-std::vector<int8_t> ConvertUnsqueeze_V2_0(PrimitivePtr primitive) {
+-  if (primitive != nullptr) {
+-    auto prim = static_cast<schema::Primitive *>(primitive);
+-    auto value = prim->value_as_Unsqueeze();
+-    if (value != nullptr) {
+-      Unsqueeze unsqueeze{};
+-      std::vector<int64_t> axis;
+-      axis.reserve(kNumEight);
+-      if (value->axis() == nullptr) {
+-        axis = {0, 0, 0, 0};
+-      } else {
+-        axis = std::vector<int64_t>(value->axis()->begin(), value->axis()->end());
+-      }
+-      unsqueeze.axis = axis;
+-      OHOS::MessageParcel data;
+-      (void)UnsqueezeBlockMarshalling(data, unsqueeze);
+-      std::vector<int8_t> ret(reinterpret_cast<const int8_t *>(data.GetData()),
+-                              reinterpret_cast<const int8_t *>(data.GetData()) + data.GetDataSize());
+-      return ret;
+-    } else {
+-      return {};
+-    }
+-  } else {
+-    return {};
+-  }
+-}
+-
+-std::vector<int8_t> Convert_V2_0(NodeType type, PrimitivePtr primitive) {
+-  switch (type) {
+-    case NODE_TYPE_ACTIVATION:
+-      return ConvertActivation_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_ADD_FUSION:
+-      return ConvertAddFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_ARGMAX_FUSION:
+-      return ConvertArgMaxFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_AVG_POOL_FUSION:
+-      return ConvertAvgPoolFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_BATCH_TO_SPACE_ND:
+-      return ConvertBatchToSpaceND_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_BIAS_ADD:
+-      return ConvertBiasAdd_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_CAST:
+-      return ConvertCast_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_CONCAT:
+-      return ConvertConcat_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_CONV2D_FUSION:
+-      return ConvertConv2DFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_CONV2D_TRANSPOSE_FUSION:
+-      return ConvertConv2dTransposeFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_DIV_FUSION:
+-      return ConvertDivFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_ELTWISE:
+-      return ConvertEltwise_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_EXPAND_DIMS:
+-      return ConvertExpandDims_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_FILL:
+-      return ConvertFill_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_FULL_CONNECTION:
+-      return ConvertFullConnection_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_FUSED_BATCH_NORM:
+-      return ConvertFusedBatchNorm_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_GATHER:
+-      return ConvertGather_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_LAYER_NORM_FUSION:
+-      return ConvertLayerNormFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_LESS_EQUAL:
+-      return ConvertLessEqual_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_MATMUL_FUSION:
+-      return ConvertMatMulFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_MAXIMUM:
+-      return ConvertMaximum_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_MAX_POOL_FUSION:
+-      return ConvertMaxPoolFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_MUL_FUSION:
+-      return ConvertMulFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_ONE_HOT:
+-      return ConvertOneHot_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_PAD_FUSION:
+-      return ConvertPadFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_POW_FUSION:
+-      return ConvertPowFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_PRELU_FUSION:
+-      return ConvertPReLUFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_QUANT_DTYPE_CAST:
+-      return ConvertQuantDTypeCast_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_REDUCE_FUSION:
+-      return ConvertReduceFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_RESHAPE:
+-      return ConvertReshape_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_RESIZE:
+-      return ConvertResize_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_RSQRT:
+-      return ConvertRsqrt_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SCALE_FUSION:
+-      return ConvertScaleFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SHAPE:
+-      return ConvertShape_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SLICE_FUSION:
+-      return ConvertSliceFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SOFTMAX:
+-      return ConvertSoftmax_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SPACE_TO_BATCH_ND:
+-      return ConvertSpaceToBatchND_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SPLIT:
+-      return ConvertSplit_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SQRT:
+-      return ConvertSqrt_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SQUARED_DIFFERENCE:
+-      return ConvertSquaredDifference_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SQUEEZE:
+-      return ConvertSqueeze_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_STACK:
+-      return ConvertStack_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_STRIDED_SLICE:
+-      return ConvertStridedSlice_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_SUB_FUSION:
+-      return ConvertSubFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_TILE_FUSION:
+-      return ConvertTileFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_TOPK_FUSION:
+-      return ConvertTopKFusion_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_TRANSPOSE:
+-      return ConvertTranspose_V2_0(primitive);
+-      break;
+-    case NODE_TYPE_UNSQUEEZE:
+-      return ConvertUnsqueeze_V2_0(primitive);
+-      break;
+-    default:
+-      return {};
+-  }
+-}
+-
+-OHOS::HDI::Nnrt::V2_0::Model *MindIR_LiteGraph_To_Model(const LiteGraph *lite_graph, const OHOS::HDI::Nnrt::V2_0::SharedBuffer &buffer) {
+-  if (lite_graph != nullptr) {
+-    MS_LOG(INFO) << "MindIR_LiteGraph_To_Model begin";
+-    if (!lite_graph->name_.empty()) {
+-      MS_LOG(INFO) << "Start converting lite graph,name =" << lite_graph->name_;
+-    } else {
+-      MS_LOG(INFO) << "Start converting lite graph, but lite graph has no name.";
+-    }
+-    std::vector<uint32_t> inputIndex;
+-    std::vector<uint32_t> outputIndex;
+-    std::vector<OHOS::HDI::Nnrt::V2_0::Node> nodes;
+-    std::vector<OHOS::HDI::Nnrt::V2_0::Tensor> allTensors;
+-    std::vector<OHOS::HDI::Nnrt::V2_0::SubGraph> subGraph;
+-    // nodes
+-    MS_LOG(INFO) << "Start converting nodes, vector size = " << lite_graph->all_nodes_.size();
+-    nodes.reserve(lite_graph->all_nodes_.size());
+-    for (auto node : lite_graph->all_nodes_) {
+-      if (node == nullptr) {
+-        MS_LOG(ERROR) << "node is nullptr, convert fail.";
+-        return nullptr;
+-      }
+-      OHOS::HDI::Nnrt::V2_0::Node tmp;
+-      tmp.name = node->name_;
+-      if (node->primitive_ == nullptr) {
+-        MS_LOG(ERROR) << "node primitive is nullptr, convert fail.";
+-        return nullptr;
+-      }
+-      auto prim = static_cast<schema::Primitive *>(node->primitive_);
+-      auto value = prim->value_type();
+-      tmp.nodeType = static_cast<HDI::Nnrt::V2_0::NodeType>(value);
+-      tmp.nodeAttr = Convert_V2_0(static_cast<NodeType>(value), node->primitive_);
+-      tmp.inputIndex = node->input_indices_;
+-      tmp.outputIndex = node->output_indices_;
+-      tmp.quantType = static_cast<HDI::Nnrt::V2_0::QuantType>(node->quant_type_);
+-      nodes.emplace_back(tmp);
+-    }
+-
+-    MS_LOG(INFO) << "Start converting Tensor,Tensor size=" << lite_graph->all_tensors_.size();
+-    // Tensor
+-    allTensors.reserve(lite_graph->all_tensors_.size());
+-    unsigned int tensor_buffer_offset = 0;
+-    uint8_t *mmap_ptr = nullptr;
+-    if (buffer.fd != -1) {
+-      mmap_ptr =
+-        static_cast<uint8_t *>(mmap(nullptr, buffer.bufferSize, PROT_READ | PROT_WRITE, MAP_SHARED, buffer.fd, 0));
+-      if (mmap_ptr == MAP_FAILED) {
+-        MS_LOG(ERROR) << "mmap failed";
+-        return nullptr;
+-      }
+-    }
+-    MS_LOG(INFO) << "Start parsing tensor, mmap buffer size = " << buffer.bufferSize;
+-    for (auto tensor : lite_graph->all_tensors_) {
+-      OHOS::HDI::Nnrt::V2_0::Tensor tmp;
+-      tmp.name = MindIR_Tensor_GetName(tensor);
+-      tmp.dataType = static_cast<HDI::Nnrt::V2_0::HDI::Nnrt::V2_0::DataType>(MindIR_Tensor_GetDataType(tensor));
+-      tmp.dims = MindIR_Tensor_GetDims(tensor);
+-      tmp.format = static_cast<HDI::Nnrt::V2_0::HDI::Nnrt::V2_0::Format>(MindIR_Tensor_GetFormat(tensor));
+-      tmp.data = MindIR_Tensor_GetData_V2_0(tensor, buffer, mmap_ptr, tensor_buffer_offset);
+-      tmp.quantParams = MindIR_Tensor_GetQuantParams_OHOS_V2_0(tensor);
+-      allTensors.emplace_back(tmp);
+-      tensor_buffer_offset = tmp.data.offset + tmp.data.dataSize;
+-    }
+-    MS_LOG(INFO) << ("Parsing tensor finish.");
+-    if (buffer.fd != -1) {
+-      auto munmap_res = munmap(mmap_ptr, buffer.bufferSize);
+-      if (munmap_res != 0) {
+-        MS_LOG(ERROR) << "unmap failed.";
+-        return nullptr;
+-      }
+-    }
+-
+-    MS_LOG(INFO) << "Start converting SubGraph,SubGraph size=" << lite_graph->sub_graphs_.size();
+-    // SubGraph
+-    subGraph.reserve(lite_graph->sub_graphs_.size());
+-    for (auto graph : lite_graph->sub_graphs_) {
+-      OHOS::HDI::Nnrt::V2_0::SubGraph tmp;
+-      tmp.name = graph->name_;
+-      tmp.inputIndices = std::vector<uint32_t>(graph->input_indices_);
+-      tmp.outputIndices = std::vector<uint32_t>(graph->output_indices_);
+-      tmp.nodeIndices = std::vector<uint32_t>(graph->node_indices_);
+-      subGraph.emplace_back(tmp);
+-    }
+-
+-    MS_LOG(INFO) << "Start copying model";
+-    auto *ret_model = new (std::nothrow) Model();
+-    if (ret_model == nullptr) {
+-      MS_LOG(ERROR) << "new Model failed.";
+-      return nullptr;
+-    }
+-    ret_model->name = lite_graph->name_;
+-    ret_model->inputIndex = lite_graph->input_indices_;
+-    ret_model->outputIndex = lite_graph->output_indices_;
+-    ret_model->nodes = nodes;
+-    ret_model->allTensors = allTensors;
+-    ret_model->subGraph = subGraph;
+-    MS_LOG(INFO) << "MindIR_LiteGraph_To_Model success";
+-    return ret_model;
+-  } else {
+-    MS_LOG(ERROR) << "lite graph is nullptr";
+-    return nullptr;
+-  }
+-}
+-
+-}  // namespace lite
+-}  // namespace mindspore
+\ No newline at end of file
+diff --git a/mindspore/lite/mindir/src/mindir_tensor.cc b/mindspore/lite/mindir/src/mindir_tensor.cc
+index 2db4ce8b..9575f8c2 100644
+--- a/mindspore/lite/mindir/src/mindir_tensor.cc
++++ b/mindspore/lite/mindir/src/mindir_tensor.cc
+@@ -18,10 +18,6 @@
+ #include "utils.h"
+ #include "securec.h"
+ #include "mindir_memory_manager.h"
+-#include "nnrt/v1_0/nnrt_types.h"
+-#include "nnrt/v2_0/nnrt_types.h"
+-
+-using namespace OHOS::HDI::Nnrt::V1_0;
+ 
+ namespace mindspore {
+ namespace lite {
+@@ -239,82 +235,6 @@ void MindIR_Tensor_SetFormat(TensorPtr *tensor, Format format) {
+   }
+ }
+ 
+-OHOS::HDI::Nnrt::V1_0::SharedBuffer MindIR_Tensor_GetData(ConstTensorPtr tensor,
+-                                   const OHOS::HDI::Nnrt::V1_0::SharedBuffer &buffer_templete,
+-                                   uint8_t *mmap_ptr, unsigned int offset) {
+-  if (tensor != nullptr) {
+-    auto value = static_cast<const schema::Tensor *>(tensor);
+-    if (value != nullptr) {
+-      OHOS::HDI::Nnrt::V1_0::SharedBuffer result{};
+-
+-      if (value->data() == nullptr || value->data()->size() == 0) {
+-        result.fd = -1;
+-        result.bufferSize = buffer_templete.bufferSize;
+-        result.offset = offset;
+-        result.dataSize = 0;
+-        return result;
+-      }
+-      if (mmap_ptr == nullptr) {
+-        MS_LOG(ERROR) << "Tensor GetData failed, mmap pointer should not be nullptr";
+-        return {-1, 0, offset, 0};
+-      }
+-      result.fd = buffer_templete.fd;
+-      result.bufferSize = buffer_templete.bufferSize;
+-      auto ret = memcpy_s(mmap_ptr + offset, value->data()->size(), value->data()->data(), value->data()->size());
+-      if (ret != EOK) {
+-        MS_LOG(ERROR) << "Tensor memcpy failed, ret:" << ret;
+-        return {-1, 0, offset, 0};
+-      }
+-      result.offset = offset;
+-      result.dataSize = value->data()->size();
+-      return result;
+-    } else {
+-      MS_LOG(ERROR) << "Tensor GetData failed, mmap pointer should not be nullptr";
+-      return {-1, 0, offset, 0};
+-    }
+-  } else {
+-    return {-1, 0, offset, 0};
+-  }
+-}
+-
+-OHOS::HDI::Nnrt::V2_0::SharedBuffer MindIR_Tensor_GetData_V2_0(ConstTensorPtr tensor,
+-                                   const OHOS::HDI::Nnrt::V2_0::SharedBuffer &buffer_templete,
+-                                   uint8_t *mmap_ptr, unsigned int offset) {
+-  if (tensor != nullptr) {
+-    auto value = static_cast<const schema::Tensor *>(tensor);
+-    if (value != nullptr) {
+-      OHOS::HDI::Nnrt::V2_0::SharedBuffer result{};
+-
+-      if (value->data() == nullptr || value->data()->size() == 0) {
+-        result.fd = -1;
+-        result.bufferSize = buffer_templete.bufferSize;
+-        result.offset = offset;
+-        result.dataSize = 0;
+-        return result;
+-      }
+-      if (mmap_ptr == nullptr) {
+-        MS_LOG(ERROR) << "Tensor GetData failed, mmap pointer should not be nullptr";
+-        return {-1, 0, offset, 0};
+-      }
+-      result.fd = buffer_templete.fd;
+-      result.bufferSize = buffer_templete.bufferSize;
+-      auto ret = memcpy_s(mmap_ptr + offset, value->data()->size(), value->data()->data(), value->data()->size());
+-      if (ret != EOK) {
+-        MS_LOG(ERROR) << "Tensor memcpy failed, ret:" << ret;
+-        return {-1, 0, offset, 0};
+-      }
+-      result.offset = offset;
+-      result.dataSize = value->data()->size();
+-      return result;
+-    } else {
+-      MS_LOG(WARNING) << "Tensor GetData failed, mmap pointer should not be nullptr";
+-      return {-1, 0, offset, 0};
+-    }
+-  } else {
+-    return {-1, 0, offset, 0};
+-  }
+-}
+-
+ std::vector<uint8_t> MindIR_Tensor_GetData(ConstTensorPtr tensor) {
+   if (tensor != nullptr) {
+     auto value = static_cast<const schema::Tensor *>(tensor);
+diff --git a/mindspore/lite/src/litert/c_api/context_c.cc b/mindspore/lite/src/litert/c_api/context_c.cc
+index c5f825aa..bde0460c 100644
+--- a/mindspore/lite/src/litert/c_api/context_c.cc
++++ b/mindspore/lite/src/litert/c_api/context_c.cc
+@@ -324,6 +324,10 @@ NNRTDeviceDesc *OH_AI_GetAllNNRTDeviceDescs(size_t *num) {
+ 
+     const char *name = nullptr;
+     (void)OH_NNDevice_GetName(all_device_ids[i], &name);
++    if (name == nullptr) {
++      MS_LOG(ERROR) << "OH_NNDevice_GetName error.";
++      return nullptr;
++    }
+     desc[i].device_name[127] = '\0';
+     strncpy(desc[i].device_name, name, 127);
+   }
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc
+index 91094658..91bbd39a 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc
+@@ -18,6 +18,7 @@
+ #include "src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h"
+ #include <vector>
+ #include <algorithm>
++#include <utility>
+ #include "schema/model_generated.h"
+ #include "src/litert/kernel_registry.h"
+ #include "nnacl/fp32_grad/strided_slice_grad.h"
+@@ -55,7 +56,6 @@ void StridedSliceGradCPUKernel::FillEmptyDims() {
+   int32_t begins[DIMENSION_8D];
+   int32_t ends[DIMENSION_8D];
+   int32_t strides[DIMENSION_8D];
+-  int32_t input_shape[DIMENSION_8D];
+   int32_t i;
+ 
+   // invert the order of the dimension and fill defout outsize actual ranae
+@@ -63,19 +63,10 @@ void StridedSliceGradCPUKernel::FillEmptyDims() {
+     begins[i] = param_->begins_[i];
+     ends[i] = param_->ends_[i];
+     strides[i] = param_->strides_[i];
+-    input_shape[i] = param_->in_shape_[i];
+   }
+ 
+-  int32_t real_index = param_->in_shape_length_ - 1;
+-  for (i = DIMENSION_8D - 1; i >= 0; --i) {
+-    if (real_index >= 0) {
+-      param_->in_shape_[i] = input_shape[real_index--];
+-    } else {
+-      param_->in_shape_[i] = 1;
+-    }
+-  }
+   int out_shape_length = in_tensors_.at(1)->shape().at(0);
+-  real_index = out_shape_length - 1;
++  int32_t real_index = out_shape_length - 1;
+   for (i = DIMENSION_8D - 1; i >= 0; --i) {
+     if (real_index >= 0) {
+       param_->begins_[i] = begins[real_index];
+@@ -87,17 +78,15 @@ void StridedSliceGradCPUKernel::FillEmptyDims() {
+       param_->strides_[i] = 1;
+     }
+   }
+-  param_->num_axes_ = DIMENSION_8D;
+-  param_->in_shape_length_ = DIMENSION_8D;
+-
+   for (i = 0; i < DIMENSION_8D; ++i) {
+-    if (param_->begins_[i] < 0) {
+-      param_->begins_[i] += param_->in_shape_[i];
+-    }
+-    if (param_->ends_[i] < 0) {
+-      param_->ends_[i] += param_->in_shape_[i];
++    int ax = param_->ends_[i] - param_->begins_[i];
++    if (ax < 0) {
++      ax = 0;
+     }
++    param_->in_shape_[i] = ax;
+   }
++  param_->num_axes_ = DIMENSION_8D;
++  param_->in_shape_length_ = DIMENSION_8D;
+ }
+ 
+ void StridedSliceGradCPUKernel::FillOutputDim() {
+@@ -115,6 +104,24 @@ void StridedSliceGradCPUKernel::FillOutputDim() {
+ int StridedSliceGradCPUKernel::ReSize() {
+   FillEmptyDims();
+   FillOutputDim();
++  for (int32_t i = 0; i < DIMENSION_8D; ++i) {
++    if (param_->ends_[i] == 0 && param_->begins_[i] < 0) {
++      param_->ends_[i] += output_shape_[i];
++    }
++    if (param_->ends_[i] < 0) {
++      param_->ends_[i] = (param_->ends_[i] + output_shape_[i]) < 0 ? 0 : param_->ends_[i] + output_shape_[i];
++    }
++    if (param_->ends_[i] > output_shape_[i]) {
++      param_->ends_[i] = output_shape_[i];
++    }
++    if (param_->begins_[i] < 0) {
++      auto k = param_->begins_[i] + output_shape_[i];
++      param_->begins_[i] = k < 0 ? 0 : k;
++    }
++    if (param_->begins_[i] > output_shape_[i]) {
++      param_->begins_[i] = output_shape_[i];
++    }
++  }
+   return RET_OK;
+ }
+ 
+@@ -142,20 +149,81 @@ int StridedSliceGradCPUKernel::DoExecute(int task_id) {
+   auto input = in_tensors_.at(0);
+   auto output = out_tensors_.at(0);
+ 
+-  int *po = output_shape_.data();
+-  auto dx = reinterpret_cast<float *>(output->MutableData());
+-  auto dy = reinterpret_cast<float *>(input->MutableData());
+-  CHECK_NULL_RETURN(po);
++  auto *dx = reinterpret_cast<float *>(output->MutableData());
++  auto *dy = reinterpret_cast<float *>(input->MutableData());
+   CHECK_NULL_RETURN(dx);
+   CHECK_NULL_RETURN(dy);
+-  std::fill(dx, dx + output->ElementsNum(), 0.f);
+-  auto ret = DoStridedSliceGrad(dy, dx, po, param_);
+-  if (ret != RET_OK) {
+-    MS_LOG(ERROR) << "StridedSliceGrad error error_code[" << ret << "]";
+-    return RET_ERROR;
++  return CalStridedSliceGrad(dy, dx);
++}
++
++int StridedSliceGradCPUKernel::CalStridedSliceGrad(float *input, float *output) {
++  int input_num = 1;
++  for (int le = 0; le < DIMENSION_8D; le++) {
++    input_num = input_num * param_->in_shape_[le];
++  }
++  int output_num = 1;
++  for (int len = 0; len < DIMENSION_8D; len++) {
++    output_num = output_num * output_shape_[len];
++  }
++
++  if (input_num == 0) {
++    res_arr_ = reinterpret_cast<float *>(ms_context_->allocator->Malloc(sizeof(float) * output_num));
++    for (int res_len = 0; res_len < output_num; res_len++) {
++      res_arr_[res_len] = static_cast<float>(0);
++    }
++    memcpy(output, res_arr_, output_num * sizeof(float));
++    FreeRunBuffer();
++    return RET_OK;
+   }
++
++  int temp_num = input_num;
++  int max_num = input_num;
++  int step = 1;
++  for (int i = DIMENSION_8D - 1; i >= 0; --i) {
++    temp_num = static_cast<int>(temp_num * output_shape_[i] / param_->in_shape_[i]);
++    max_num = MSMAX(max_num, temp_num);
++  }
++  temp_input_ = reinterpret_cast<float *>(ms_context_->allocator->Malloc(sizeof(float) * max_num));
++  memset(temp_input_, 0, max_num * sizeof(float));
++  memcpy(temp_input_, input, input_num * sizeof(float));
++  temp_ = reinterpret_cast<float *>(ms_context_->allocator->Malloc(max_num * sizeof(float)));
++  temp_num = input_num;
++  for (int i = DIMENSION_8D - 1; i >= 0; --i) {
++    temp_num = static_cast<int>(temp_num * output_shape_[i] / param_->in_shape_[i]);
++    memset(temp_, 0, sizeof(float) * temp_num);
++    int start1 = 0;
++    int start2 = 0;
++    while (start1 < temp_num) {
++      int id = 0;
++      for (int k = param_->begins_[i]; param_->strides_[i] > 0 ? k < param_->ends_[i] : k > param_->ends_[i];
++           k += param_->strides_[i], id++) {
++        memcpy(temp_ + start1 + k * step, temp_input_ + start2 + id * step, step * sizeof(float));
++      }
++      start1 += output_shape_[i] * step;
++      start2 += param_->in_shape_[i] * step;
++    }
++    step *= output_shape_[i];
++    std::swap(temp_input_, temp_);
++  }
++  memcpy(output, temp_input_, output_num * sizeof(float));
++  FreeRunBuffer();
+   return RET_OK;
+ }
+ 
++void StridedSliceGradCPUKernel::FreeRunBuffer() {
++  if (res_arr_ != nullptr) {
++    ms_context_->allocator->Free(res_arr_);
++    res_arr_ = nullptr;
++  }
++  if (temp_input_ != nullptr) {
++    ms_context_->allocator->Free(temp_input_);
++    temp_input_ = nullptr;
++  }
++  if (temp_ != nullptr) {
++    ms_context_->allocator->Free(temp_);
++    temp_ = nullptr;
++  }
++}
++
+ REG_KERNEL(kCPU, kNumberTypeFloat32, PrimitiveType_StridedSliceGrad, LiteKernelCreator<StridedSliceGradCPUKernel>)
+ }  // namespace mindspore::kernel
+diff --git a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h
+index 25d6f855..f34dd20d 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h
++++ b/mindspore/lite/src/litert/kernel/cpu/fp32_grad/strided_slice_grad.h
+@@ -40,9 +40,14 @@ class StridedSliceGradCPUKernel : public LiteKernel {
+   void FillEmptyDims();
+   void FillOutputDim();
+   void ParseMasks();
++  int CalStridedSliceGrad(float *input, float *output);
++  void FreeRunBuffer();
+ 
+   StridedSliceParameter *param_;
+   std::vector<int> output_shape_;
++  float *res_arr_ = nullptr;
++  float *temp_input_ = nullptr;
++  float *temp_ = nullptr;
+ };
+ }  // namespace mindspore::kernel
+ 
+diff --git a/mindspore/lite/src/litert/lite_model.cc b/mindspore/lite/src/litert/lite_model.cc
+index bcb9cb70..af9b1f8d 100644
+--- a/mindspore/lite/src/litert/lite_model.cc
++++ b/mindspore/lite/src/litert/lite_model.cc
+@@ -66,7 +66,9 @@ void LiteModel::Free() {
+   node_bufs_.resize(0);
+ 
+   for (auto *schema_tensor_wrapper : inner_all_tensors_) {
+-    delete schema_tensor_wrapper;
++    if (schema_tensor_wrapper != nullptr) {
++      delete schema_tensor_wrapper;
++    }
+   }
+   inner_all_tensors_.clear();
+ 
+-- 
+2.17.1
+

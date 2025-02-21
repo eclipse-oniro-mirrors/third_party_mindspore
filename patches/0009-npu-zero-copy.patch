@@ -1,0 +1,678 @@
+From 03c31305a6a6c8a4b39d5fb734e312a747828672 Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Sat, 1 Jun 2024 17:46:33 +0800
+Subject: fix output DataSize 0, heap-buffer-overflow
+
+---
+ include/c_api/tensor_c.h                      |  15 ++
+ mindspore/lite/BUILD.gn                       |   1 +
+ mindspore/lite/src/litert/c_api/model_c.cc    |  40 ++++-
+ mindspore/lite/src/litert/c_api/tensor_c.cc   |  32 ++++
+ .../lite/src/litert/c_api/type_c_private.h    |   3 +
+ .../src/litert/cxx_api/model/model_impl.cc    |  77 +++++++-
+ .../litert/delegate/nnrt/nnrt_allocator.cc    | 168 ++++++++++++++++++
+ .../src/litert/delegate/nnrt/nnrt_allocator.h |  64 +++++++
+ .../litert/delegate/nnrt/nnrt_model_kernel.cc |  50 +++++-
+ .../litert/delegate/nnrt/nnrt_model_kernel.h  |   3 +
+ .../litert/kernel/cpu/nnacl/nnacl_kernel.cc   |   2 +-
+ mindspore/lite/src/litert/mindrt_executor.cc  |  14 +-
+ 12 files changed, 458 insertions(+), 11 deletions(-)
+ create mode 100644 mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc
+ create mode 100644 mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h
+
+diff --git a/include/c_api/tensor_c.h b/include/c_api/tensor_c.h
+index 6d2aaab6..2f641725 100644
+--- a/include/c_api/tensor_c.h
++++ b/include/c_api/tensor_c.h
+@@ -154,6 +154,21 @@ OH_AI_API int64_t OH_AI_TensorGetElementNum(const OH_AI_TensorHandle tensor);
+ /// \return The data size of the tensor.
+ OH_AI_API size_t OH_AI_TensorGetDataSize(const OH_AI_TensorHandle tensor);
+ 
++/// \brief Obtain allocator for the tensor.
++///
++/// \param[in] tensor Tensor object handle.
++///
++/// \return The pointer of allocator.
++OH_AI_API void *OH_AI_TensorGetAllocator(OH_AI_TensorHandle tensor);
++
++/// \brief Set allocator for the tensor.
++///
++/// \param[in] tensor Tensor object handle.
++/// \param[in] allocator A pointer to the allocator.
++///
++/// \return OH_AI_STATUS_SUCCESS if success, or detail error code if failed.
++OH_AI_API OH_AI_Status OH_AI_TensorSetAllocator(OH_AI_TensorHandle tensor, void *allocator);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/mindspore/lite/BUILD.gn b/mindspore/lite/BUILD.gn
+index 5866e335..58ee5e51 100644
+--- a/mindspore/lite/BUILD.gn
++++ b/mindspore/lite/BUILD.gn
+@@ -443,6 +443,7 @@ ohos_shared_library("mindspore_lib") {
+       "src/litert/delegate/nnrt/checker/primitive_check.cc",
+       "src/litert/delegate/nnrt/nnrt_delegate.cc",
+       "src/litert/delegate/nnrt/nnrt_model_kernel.cc",
++      "src/litert/delegate/nnrt/nnrt_allocator.cc",
+     ]
+     include_dirs += [
+       "src/delegate/nnrt/include",
+diff --git a/mindspore/lite/src/litert/c_api/model_c.cc b/mindspore/lite/src/litert/c_api/model_c.cc
+index 9da52d76..20e1c227 100644
+--- a/mindspore/lite/src/litert/c_api/model_c.cc
++++ b/mindspore/lite/src/litert/c_api/model_c.cc
+@@ -14,6 +14,7 @@
+  * limitations under the License.
+  */
+ #include "include/c_api/model_c.h"
++#include "type_c_private.h"
+ #include <vector>
+ #include <cstdint>
+ #include "include/api/context.h"
+@@ -37,6 +38,11 @@ public:
+     for (auto out : outputs_train_) {
+       delete out;
+     }
++
++    // In zero copy scene where user will call set or get allocator function, but when model is destroyed, the allocator
++    // table will not be freed, and its size continues to grow causing memory leak, so when ModelC is destroyed, clean
++    // allocator table.
++    CleanAllocatorTable();
+   }
+ 
+   MSTensor **GetInputs(size_t *input_num);
+@@ -246,10 +252,42 @@ OH_AI_Status OH_AI_ModelPredict(OH_AI_ModelHandle model, const OH_AI_TensorHandl
+   mindspore::MSKernelCallBack after_call_back = impl->TransCallBack(after);
+ 
+   std::vector<mindspore::MSTensor> ms_tensor_outputs;
++
++  bool all_has_data = false;
++
++  size_t output_num;
++  (void)impl->GetOutputs(&output_num);
++  auto handle_num = outputs->handle_num;
++  if (handle_num == output_num) {
++    MS_LOG(INFO) << "use user provided output";
++    for (size_t i = 0; i < output_num; i++) {
++      if (outputs->handle_list[i] == nullptr) {
++        MS_LOG(ERROR) << "user provided output array handle_list[" << i << "] is nullptr";
++        return OH_AI_STATUS_LITE_NULLPTR;
++      }
++      ms_tensor_outputs.push_back(*static_cast<mindspore::MSTensor *>(outputs->handle_list[i]));
++    }
++
++    all_has_data = std::all_of(ms_tensor_outputs.begin(), ms_tensor_outputs.end(), [](const mindspore::MSTensor &t) {
++      return t.Data() != nullptr;
++    });
++
++    if (!all_has_data) {
++      ms_tensor_outputs.clear();
++    }
++
++  }
++
+   auto ret = impl->model_->Predict(ms_tensor_inputs, &ms_tensor_outputs, before_call_back, after_call_back);
+   if (!ret.IsOk()) {
+     MS_LOG(ERROR) << "Predict fail, ret :" << ret;
++    return static_cast<OH_AI_Status>(ret.StatusCode());
+   }
++
++  if (handle_num == output_num && all_has_data) {
++    return OH_AI_STATUS_SUCCESS;
++  }
++
+   outputs->handle_list = reinterpret_cast<OH_AI_TensorHandle *>(impl->GetOutputs(&outputs->handle_num));
+   return static_cast<OH_AI_Status>(ret.StatusCode());
+ }
+@@ -345,7 +383,7 @@ char **OH_AI_TrainCfgGetLossName(OH_AI_TrainCfgHandle train_cfg, size_t *num) {
+   auto impl = static_cast<mindspore::TrainCfg *>(train_cfg);
+   auto loss_name = impl->GetLossName();
+   *num = loss_name.size();
+-  char **name = static_cast<char **>(malloc(loss_name.size()));
++  char **name = static_cast<char **>(malloc(loss_name.size() * sizeof(char *)));
+   if (name == nullptr) {
+     MS_LOG(ERROR) << "Failed to malloc loss_name.";
+     return nullptr;
+diff --git a/mindspore/lite/src/litert/c_api/tensor_c.cc b/mindspore/lite/src/litert/c_api/tensor_c.cc
+index 4b1e6aff..fc3814dd 100644
+--- a/mindspore/lite/src/litert/c_api/tensor_c.cc
++++ b/mindspore/lite/src/litert/c_api/tensor_c.cc
+@@ -13,11 +13,18 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
++#include <unordered_map>
+ #include "include/c_api/tensor_c.h"
+ #include "include/api/status.h"
+ #include "src/tensor.h"
+ #include "src/litert/cxx_api/tensor/tensor_impl.h"
+ 
++static std::unordered_map<void *, std::weak_ptr<mindspore::Allocator>> allocator_table;
++
++void CleanAllocatorTable() {
++  allocator_table.clear();
++}
++
+ OH_AI_TensorHandle OH_AI_TensorCreate(const char *name, OH_AI_DataType type, const int64_t *shape, size_t shape_num,
+                                       const void *data, size_t data_len) {
+   if (name == nullptr || shape == nullptr) {
+@@ -208,3 +215,28 @@ size_t OH_AI_TensorGetDataSize(const OH_AI_TensorHandle tensor) {
+   auto impl = static_cast<mindspore::MSTensor *>(tensor);
+   return impl->DataSize();
+ }
++
++OH_AI_Status OH_AI_TensorSetAllocator(OH_AI_TensorHandle tensor, void *allocator) {
++  if (tensor == nullptr) {
++    MS_LOG(ERROR) << "param is nullptr.";
++    return OH_AI_STATUS_LITE_NULLPTR;
++  }
++  auto impl = static_cast<mindspore::MSTensor *>(tensor);
++  if (allocator_table.count(allocator) == 0) {
++    MS_LOG(ERROR) << "the input allocator does not belong to framework";
++    return OH_AI_STATUS_LITE_PARAM_INVALID;
++  }
++  std::static_pointer_cast<mindspore::LiteTensorImpl>(impl->impl())->set_own_data(true);
++  impl->SetAllocator(allocator_table[allocator].lock());
++  return OH_AI_STATUS_SUCCESS;
++}
++
++void *OH_AI_TensorGetAllocator(const OH_AI_TensorHandle tensor) {
++  if (tensor == nullptr) {
++    MS_LOG(ERROR) << "param is nullptr.";
++    return nullptr;
++  }
++  auto impl = static_cast<mindspore::MSTensor *>(tensor);
++  allocator_table[impl->allocator().get()] = impl->allocator();
++  return impl->allocator().get();
++}
+diff --git a/mindspore/lite/src/litert/c_api/type_c_private.h b/mindspore/lite/src/litert/c_api/type_c_private.h
+index 2d3b3883..1a76820d 100644
+--- a/mindspore/lite/src/litert/c_api/type_c_private.h
++++ b/mindspore/lite/src/litert/c_api/type_c_private.h
+@@ -36,5 +36,8 @@ struct NNRTDeviceDesc {
+ 
+ #ifdef __cplusplus
+ }
++
++void CleanAllocatorTable();
++
+ #endif
+ #endif  // MINDSPORE_LITE_SRC_LITERT_C_API_TYPE_C_PRIVATE_H_
+diff --git a/mindspore/lite/src/litert/cxx_api/model/model_impl.cc b/mindspore/lite/src/litert/cxx_api/model/model_impl.cc
+index 78b1ca67..02533dc3 100644
+--- a/mindspore/lite/src/litert/cxx_api/model/model_impl.cc
++++ b/mindspore/lite/src/litert/cxx_api/model/model_impl.cc
+@@ -463,7 +463,60 @@ Status ModelImpl::Predict(const std::vector<MSTensor> &inputs, std::vector<MSTen
+           input->set_shape(truncate_shape);
+ #endif
+         }
+-        input->set_data(user_input.MutableData());
++        if (user_input.allocator() == input->allocator()) {
++          input->set_data(user_input.MutableData());
++          input->set_own_data(false);
++        } else {
++          void *user_data = user_input.MutableData();
++          if (user_data == nullptr) {
++            MS_LOG(ERROR) << "user data is nullptr";
++            return kLiteNullptr;
++          }
++          void *input_data = input->MutableData();
++          if (input_data == nullptr) {
++            MS_LOG(ERROR) << "input data is nullptr";
++            return kLiteNullptr;
++          }
++          memcpy(input_data, user_data, input->Size());
++        }
++      }
++    }
++  }
++
++  auto ori_output_tensors = GetOutputs();
++  std::vector<bool> copy_output_data;
++  copy_output_data.resize(ori_output_tensors.size(), false);
++  if (outputs->empty()) {
++    MS_LOG(INFO) << "user provided output is empty";
++  } else if (outputs->size() != ori_output_tensors.size()) {
++    MS_LOG(ERROR) << "user provided output size is not equal to model's output size";
++    return kLiteError;
++  } else {
++    for (size_t i = 0; i < ori_output_tensors.size(); i++) {
++      auto ori_output = ori_output_tensors[i];
++      auto lite_impl = std::static_pointer_cast<LiteTensorImpl>(ori_output.impl());
++      MS_CHECK_TRUE_RET(lite_impl != nullptr, kLiteNullptr);
++      auto ori_out_tensor = static_cast<lite::Tensor *>(lite_impl->lite_tensor());
++      MS_CHECK_TRUE_RET(ori_out_tensor != nullptr, kLiteNullptr);
++
++      auto user_output = (*outputs)[i];
++      auto user_lite_impl = std::static_pointer_cast<LiteTensorImpl>(user_output.impl());
++      MS_CHECK_TRUE_RET(user_lite_impl != nullptr, kLiteNullptr);
++      auto user_out_tensor = user_lite_impl->lite_tensor();
++      if (ori_out_tensor == user_out_tensor) {
++        continue;
++      }
++
++      void *user_out_data = nullptr;
++      if (user_output.DataSize() > 0) {
++        user_out_data = user_output.MutableData();
++      }
++      if (ori_out_tensor->allocator() == user_output.allocator() && user_out_data != nullptr) {
++        MS_LOG(INFO) << "use user data";
++        ori_out_tensor->set_data(user_out_data);
++        ori_out_tensor->set_own_data(false);
++      } else {
++        copy_output_data[i] = true;
+       }
+     }
+   }
+@@ -474,6 +527,28 @@ Status ModelImpl::Predict(const std::vector<MSTensor> &inputs, std::vector<MSTen
+     return ret;
+   }
+   MS_LOG(DEBUG) << "Run graph success.";
++
++  for (size_t i = 0; i < copy_output_data.size(); i++) {
++    if (!copy_output_data[i]) {
++      continue;
++    }
++    auto ori_output = ori_output_tensors[i];
++    auto ori_out_data = ori_output.MutableData();
++    MS_CHECK_TRUE_RET(ori_out_data != nullptr, kLiteNullptr);
++    auto user_output = (*outputs)[i];
++    MS_CHECK_TRUE_RET(user_output.MutableData() != nullptr, kLiteNullptr);
++    if (user_output.DataSize() >= ori_output.DataSize()) {
++      memcpy(user_output.MutableData(), ori_out_data, ori_output.DataSize());
++    } else {
++      MS_LOG(ERROR) << "user out data size is less than model's output data size";
++      return kLiteError;
++    }
++  }
++
++  if (outputs->size() == ori_output_tensors.size()) {
++    return kSuccess;
++  }
++
+   auto res = GetOutputs();
+   if (res.empty()) {
+     MS_LOG(DEBUG) << "Empty outputs.";
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc
+new file mode 100644
+index 00000000..f79c1682
+--- /dev/null
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.cc
+@@ -0,0 +1,168 @@
++/**
++ * Copyright 2023 Huawei Technologies Co., Ltd
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <memory>
++#include <atomic>
++#include <unordered_map>
++#include <map>
++#include <mutex>
++#include "src/litert/delegate/nnrt/nnrt_allocator.h"
++#include "src/common/log.h"
++#include "interfaces/kits/c/neural_network_runtime/neural_network_runtime.h"
++
++namespace mindspore {
++namespace lite {
++NNRTAllocator::~NNRTAllocator() {
++  std::lock_guard<std::mutex> locker(mutex_);
++  for (auto &it : allocated_list_) {
++    auto membuf = it.second;
++    if (memory_category_ == NNRT_INPUT) {
++      OH_NNExecutor_DestroyInputMemory(executor_, index_, &(membuf->memory_));
++    } else {
++      OH_NNExecutor_DestroyOutputMemory(executor_, index_, &(membuf->memory_));
++    }
++    free(membuf);
++  }
++  allocated_list_.clear();
++
++  for (auto &it : free_list_) {
++    auto membuf = it.second;
++    if (memory_category_ == NNRT_INPUT) {
++      OH_NNExecutor_DestroyInputMemory(executor_, index_, &(membuf->memory_));
++    } else {
++      OH_NNExecutor_DestroyOutputMemory(executor_, index_, &(membuf->memory_));
++    }
++    free(membuf);
++  }
++  free_list_.clear();
++}
++
++void *NNRTAllocator::Malloc(size_t size) {
++  std::lock_guard<std::mutex> locker(mutex_);
++  auto iter = free_list_.lower_bound(size);
++  if (iter != free_list_.end()) {
++    auto membuf = iter->second;
++    membuf->ref_count_ = 0;
++    (void)free_list_.erase(iter);
++    allocated_list_[membuf->memory_->data] = membuf;
++    return membuf->memory_->data;
++  }
++
++  auto membuf = new (std::nothrow) MemBuf();
++  if (membuf == nullptr) {
++    MS_LOG(ERROR) << "new Membuf failed.";
++    return nullptr;
++  }
++
++  membuf->ref_count_ = 0;
++  if (memory_category_ == NNRT_INPUT) {
++    membuf->memory_ = OH_NNExecutor_AllocateInputMemory(executor_, index_, size);
++  } else {
++    membuf->memory_ = OH_NNExecutor_AllocateOutputMemory(executor_, index_, size);
++  }
++
++  if (membuf->memory_ == nullptr) {
++    MS_LOG(ERROR) << "malloc OH_NN_Memory return nullptr";
++    return nullptr;
++  }
++  if (membuf->memory_->data == nullptr) {
++    MS_LOG(ERROR) << "malloc OH_NN_Memory return nullptr";
++    if (memory_category_ == NNRT_INPUT) {
++      OH_NNExecutor_DestroyInputMemory(executor_, index_, &(membuf->memory_));
++    } else {
++      OH_NNExecutor_DestroyOutputMemory(executor_, index_, &(membuf->memory_));
++    }
++    return nullptr;
++  }
++
++  allocated_list_[membuf->memory_->data] = membuf;
++  return membuf->memory_->data;
++}
++
++void NNRTAllocator::Free(void *ptr) {
++  if (ptr == nullptr) {
++    return;
++  }
++
++  std::lock_guard<std::mutex> locker(mutex_);
++  auto iter = allocated_list_.find(ptr);
++  if (iter == allocated_list_.end()) {
++    return;
++  }
++  auto membuf = iter->second;
++  membuf->ref_count_ = 0;
++  (void)allocated_list_.erase(iter);
++  (void)free_list_.insert(std::make_pair(membuf->memory_->length, membuf));
++}
++
++int NNRTAllocator::RefCount(void *ptr) {
++  if (ptr == nullptr) {
++    return -1;
++  }
++  std::lock_guard<std::mutex> locker(mutex_);
++  auto iter = allocated_list_.find(ptr);
++  if (iter != allocated_list_.end()) {
++    auto membuf = iter->second;
++    int ref_count = std::atomic_load(&membuf->ref_count_);
++    return ref_count;
++  }
++  return -1;
++}
++
++int NNRTAllocator::SetRefCount(void *ptr, int ref_count) {
++  if (ptr == nullptr) {
++    return -1;
++  }
++  std::lock_guard<std::mutex> locker(mutex_);
++  auto iter = allocated_list_.find(ptr);
++  if (iter != allocated_list_.end()) {
++    auto membuf = iter->second;
++    std::atomic_store(&membuf->ref_count_, ref_count);
++    return ref_count;
++  }
++  return -1;
++}
++
++int NNRTAllocator::DecRefCount(void *ptr, int ref_count) {
++  if (ptr == nullptr) {
++    return -1;
++  }
++  std::lock_guard<std::mutex> locker(mutex_);
++  auto iter = allocated_list_.find(ptr);
++  if (iter != allocated_list_.end()) {
++    auto membuf = iter->second;
++    auto ref = std::atomic_fetch_sub(&membuf->ref_count_, ref_count);
++    return ref;
++  }
++  return -1;
++}
++
++int NNRTAllocator::IncRefCount(void *ptr, int ref_count) {
++  if (ptr == nullptr) {
++    return -1;
++  }
++  std::lock_guard<std::mutex> locker(mutex_);
++  auto iter = allocated_list_.find(ptr);
++  if (iter != allocated_list_.end()) {
++    auto membuf = iter->second;
++    auto ref = std::atomic_fetch_add(&membuf->ref_count_, ref_count);
++    return ref;
++  }
++  return -1;
++}
++
++}  // namespace lite
++}  // namespace mindspore
+\ No newline at end of file
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h
+new file mode 100644
+index 00000000..f6721369
+--- /dev/null
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_allocator.h
+@@ -0,0 +1,64 @@
++/**
++* Copyright 2023 Huawei Technologies Co., Ltd
++*
++* Licensed under the Apache License, Version 2.0 (the "License");
++* you may not use this file except in compliance with the License.
++* You may obtain a copy of the License at
++*
++* http://www.apache.org/licenses/LICENSE-2.0
++*
++* Unless required by applicable law or agreed to in writing, software
++* distributed under the License is distributed on an "AS IS" BASIS,
++* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++* See the License for the specific language governing permissions and
++* limitations under the License.
++ */
++#ifndef MINDSPORE_LITE_SRC_RUNTIME_DELEGATE_NNRT_NNRT_ALLOCATOR_H_
++#define MINDSPORE_LITE_SRC_RUNTIME_DELEGATE_NNRT_NNRT_ALLOCATOR_H_
++
++#include <vector>
++#include <map>
++#include <atomic>
++#include <unordered_map>
++#include <map>
++#include <mutex>
++#include "include/api/allocator.h"
++struct OH_NN_Memory;
++struct OH_NNExecutor;
++
++namespace mindspore {
++namespace lite {
++enum MemoryCategory { NNRT_INPUT, NNRT_OUTPUT };
++
++class NNRTAllocator : public Allocator {
++ public:
++  NNRTAllocator(OH_NNExecutor *executor, int index, MemoryCategory memory_category)
++      : index_(index), memory_category_(memory_category), executor_(executor) {}
++  ~NNRTAllocator() override;
++
++  void *Malloc(size_t size) override;
++  void Free(void *ptr) override;
++  int RefCount(void *ptr) override;
++  int SetRefCount(void *ptr, int ref_count) override;
++  int DecRefCount(void *ptr, int ref_count) override;
++  int IncRefCount(void *ptr, int ref_count) override;
++
++ private:
++  struct MemBuf {
++    std::atomic_int ref_count_{0};
++    OH_NN_Memory *memory_{nullptr};
++  };
++
++  int index_{0};
++  MemoryCategory memory_category_{NNRT_INPUT};
++  OH_NNExecutor *executor_{nullptr};
++  std::mutex mutex_;
++  // <membuf->memory_->data, membuf>
++  std::unordered_map<void *, MemBuf *> allocated_list_;
++  std::multimap<size_t, MemBuf *> free_list_;
++};
++
++}  // namespace lite
++}  // namespace mindspore
++
++#endif  // MINDSPORE_LITE_SRC_RUNTIME_DELEGATE_NNRT_NNRT_ALLOCATOR_H_
+\ No newline at end of file
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc
+index 67443e08..f83632dd 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.cc
+@@ -15,8 +15,33 @@
+  */
+ #include <include/errorcode.h>
+ #include "nnrt_model_kernel.h"
+-int mindspore::NNRTModelKernel::Prepare() { return 0; }
++#include "nnrt_allocator.h"
++#include "litert/cxx_api/tensor/tensor_impl.h"
++int mindspore::NNRTModelKernel::Prepare() {
++  for (size_t i = 0; i < inputs_.size(); i++) {
++    auto nnrt_allocator = std::make_shared<lite::NNRTAllocator>(oh_nn_executor, i, lite::NNRT_INPUT);
++    if (nnrt_allocator == nullptr) {
++      MS_LOG(ERROR) << "Create NNRTAllocator failed";
++      return lite::RET_NULL_PTR;
++    }
++    inputs_[i].SetAllocator(nnrt_allocator);
++  }
++  for (size_t i = 0; i < outputs_.size(); i++) {
++    auto nnrt_allocator = std::make_shared<lite::NNRTAllocator>(oh_nn_executor, i, lite::NNRT_OUTPUT);
++    if (nnrt_allocator == nullptr) {
++      MS_LOG(ERROR) << "Create NNRTAllocator failed";
++      return lite::RET_NULL_PTR;
++    }
++    outputs_[i].SetAllocator(nnrt_allocator);
++  }
++  return lite::RET_OK;
++}
++
+ int mindspore::NNRTModelKernel::Execute() {
++  MS_CHECK_TRUE_RET(this->outputs().empty() != true, lite::RET_ERROR);
++  zero_copy_ = this->outputs()[Index0].allocator() != nullptr;
++
++
+   lite::STATUS ret_val = PrepareInputs();
+   if (ret_val != lite::RET_OK) {
+     MS_LOG(ERROR) << "NNRTModelKernel PrepareInputs failed, STATUS is " << ret_val;
+@@ -142,9 +167,17 @@ int mindspore::NNRTModelKernel::PrepareInputs() {
+     oprend->dimensions = dimensions_list.data();
+     oprend->quantParam = quant_param;
+     oprend->type = OH_NN_TENSOR;
+-    MS_LOG_INFO << "input tensor: " << tensor.Name() << ", data: " << (void *)tensor.MutableData() << ", size: " << tensor.DataSize();
+-    OH_NN_ReturnCode ret_code =
+-      OH_NNExecutor_SetInput(oh_nn_executor, i, oprend, tensor.MutableData(), tensor.DataSize());
++    MS_LOG_INFO << "input tensor: " << tensor.Name() << ", data: " << (void *)tensor.MutableData()
++                << ", size: " << tensor.DataSize();
++
++    OH_NN_ReturnCode ret_code;
++    if (zero_copy_) {
++      OH_NN_Memory mem{tensor.MutableData(), tensor.DataSize()};
++      ret_code = OH_NNExecutor_SetInputWithMemory(oh_nn_executor, i, oprend, &mem);
++    } else {
++      ret_code = OH_NNExecutor_SetInput(oh_nn_executor, i, oprend, tensor.MutableData(), tensor.DataSize());
++    }
++
+     delete (oprend);
+ 
+     if (!tmp_quant_param.empty()) {
+@@ -165,7 +198,14 @@ int mindspore::NNRTModelKernel::TransferOutputs() {
+   auto output_tensors = this->outputs();
+   for (size_t i = 0; i < output_tensors.size(); i++) {
+     auto tensor = output_tensors[i];
+-    OH_NN_ReturnCode ret_code = OH_NNExecutor_SetOutput(oh_nn_executor, i, tensor.MutableData(), tensor.DataSize());
++
++    OH_NN_ReturnCode ret_code;
++    if (zero_copy_) {
++      OH_NN_Memory mem{tensor.MutableData(), tensor.DataSize()};
++      ret_code = OH_NNExecutor_SetOutputWithMemory(oh_nn_executor, i, &mem);
++    } else {
++      ret_code = OH_NNExecutor_SetOutput(oh_nn_executor, i, tensor.MutableData(), tensor.DataSize());
++    }
+     if (ret_code != OH_NN_SUCCESS) {
+       MS_LOG(ERROR) << "NNExecutor SetOutput failed, current out tensor is" << tensor.Name()
+                     << ", OH_NN_ReturnCode = " << ret_code;
+diff --git a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h
+index ea15f7ca..4f2d4f19 100644
+--- a/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h
++++ b/mindspore/lite/src/litert/delegate/nnrt/nnrt_model_kernel.h
+@@ -51,6 +51,9 @@ class NNRTModelKernel : public kernel::Kernel {
+ 
+  protected:
+   OH_NNExecutor *oh_nn_executor = nullptr;
++
++ private:
++  bool zero_copy_{false};
+ };
+ }  // namespace mindspore
+ 
+diff --git a/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_kernel.cc b/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_kernel.cc
+index 813a6467..6cedc8c9 100644
+--- a/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_kernel.cc
++++ b/mindspore/lite/src/litert/kernel/cpu/nnacl/nnacl_kernel.cc
+@@ -105,7 +105,7 @@ int NNACLKernel::OptimizeDataCopy() {
+ 
+   if (input_tensor->allocator() == nullptr || input_tensor->allocator() != output_tensor->allocator() ||
+       input_tensor->allocator() != ms_context_->allocator || /* runtime allocator */
+-      op_parameter_->is_train_session_) {
++      op_parameter_->is_train_session_ || !output_tensor->own_data()) {
+     return NNACLKernel::Run();
+   }
+ 
+diff --git a/mindspore/lite/src/litert/mindrt_executor.cc b/mindspore/lite/src/litert/mindrt_executor.cc
+index e5cd720c..5c08cedf 100644
+--- a/mindspore/lite/src/litert/mindrt_executor.cc
++++ b/mindspore/lite/src/litert/mindrt_executor.cc
+@@ -295,14 +295,22 @@ void MindrtExecutor::FreeOutputTensor() {
+     if (dst_tensor->data_type() == kNumberTypeGLUInt && src_tensor->data_type() == kNumberTypeGLUInt) {
+       continue;
+     }
+-    if (dst_tensor->allocator() != nullptr) {
++
++    if ((dst_tensor->allocator() != nullptr && dst_tensor->own_data()) || dst_tensor->data() == nullptr) {
++      MS_LOG(DEBUG) << "free data";
+       dst_tensor->FreeData();
+-    } else {
+-      if (dst_tensor->data_type() == src_tensor->data_type()) {
++    } else if (dst_tensor->data() != nullptr && dst_tensor->data_type() == src_tensor->data_type()) {
++      if (dst_tensor->allocator() == nullptr) {
+         /* user set graph-output-tensor from outside */
++        MS_LOG(DEBUG) << "user set graph-output-tensor from outside";
+         src_tensor->set_data(dst_tensor->data());
+         src_tensor->set_own_data(false);
+         src_tensor->set_allocator(nullptr);
++      } else if (dst_tensor->allocator() == src_tensor->allocator()) {
++        /* nnrt npu zero copy scene */
++        MS_LOG(DEBUG) << "zero copy data";
++        src_tensor->set_data(dst_tensor->data());
++        src_tensor->set_own_data(dst_tensor->own_data());
+       }
+     }
+   }
+-- 
+2.17.1
+
