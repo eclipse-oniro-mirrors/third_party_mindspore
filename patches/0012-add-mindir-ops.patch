@@ -1,0 +1,1455 @@
+From cff83709eb00161cfb61ad93346828bde2d9a2e8 Mon Sep 17 00:00:00 2001
+From: chengfeng27 <chengfeng27@huawei.com>
+Date: Fri, 29 Mar 2024 14:19:14 +0800
+Subject: [PATCH] add mindir ops third phase
+
+---
+ mindspore/lite/mindir/include/mindir.h       |  134 +-
+ mindspore/lite/mindir/include/mindir_types.h |   27 +
+ mindspore/lite/mindir/src/mindir.cc          | 1147 +++++++++++++++++-
+ 3 files changed, 1303 insertions(+), 5 deletions(-)
+
+diff --git a/mindspore/lite/mindir/include/mindir.h b/mindspore/lite/mindir/include/mindir.h
+index 4f633493..7eb3a744 100644
+--- a/mindspore/lite/mindir/include/mindir.h
++++ b/mindspore/lite/mindir/include/mindir.h
+@@ -270,11 +270,13 @@ bool MindIR_PReLUFusion_GetChannelShared(ConstPrimitivePtr primitive);
+ void MindIR_PReLUFusion_SetChannelShared(PrimitivePtr *primitive, bool channel_shared);
+ 
+ // ********** QuantDTypeCast **********
+-PrimitivePtr MindIR_QuantDTypeCast_CreatePrimitive(int64_t src_t, int64_t dst_t);
++PrimitivePtr MindIR_QuantDTypeCast_CreatePrimitive(int64_t src_t, int64_t dst_t, int64_t axis);
+ int64_t MindIR_QuantDTypeCast_GetSrcT(ConstPrimitivePtr primitive);
+ void MindIR_QuantDTypeCast_SetSrcT(PrimitivePtr *primitive, int64_t src_t);
+ int64_t MindIR_QuantDTypeCast_GetDstT(ConstPrimitivePtr primitive);
+ void MindIR_QuantDTypeCast_SetDstT(PrimitivePtr *primitive, int64_t dst_t);
++int64_t MindIR_QuantDTypeCast_GetAxis(ConstPrimitivePtr primitive);
++void MindIR_QuantDTypeCast_SetAxis(PrimitivePtr *primitive, int64_t axis);
+ 
+ // ********** ReduceFusion **********
+ PrimitivePtr MindIR_ReduceFusion_CreatePrimitive(bool keep_dims, ReduceMode mode, bool reduce_to_end, float coeff);
+@@ -534,6 +536,136 @@ void MindIR_Clip_SetMax(PrimitivePtr *primitive, float max);
+ float MindIR_Clip_GetMin(ConstPrimitivePtr primitive);
+ void MindIR_Clip_SetMin(PrimitivePtr *primitive, float min);
+ 
++// ********** All **********
++PrimitivePtr MindIR_All_CreatePrimitive(int64_t keep_dims);
++int64_t MindIR_All_GetKeepDims(ConstPrimitivePtr primitive);
++void MindIR_All_SetKeepDims(PrimitivePtr *primitive, int64_t keep_dims);
++
++// ********** Assert **********
++PrimitivePtr MindIR_Assert_CreatePrimitive(int64_t summarize);
++int64_t MindIR_Assert_GetSummarize(ConstPrimitivePtr primitive);
++void MindIR_Assert_SetSummarize(PrimitivePtr *primitive, int64_t summarize);
++
++// ********** LogicalAnd **********
++PrimitivePtr MindIR_LogicalAnd_CreatePrimitive();
++
++// ********** LogicalNot **********
++PrimitivePtr MindIR_LogicalNot_CreatePrimitive();
++
++// ********** Cos **********
++PrimitivePtr MindIR_Cos_CreatePrimitive();
++
++// ********** Mod **********
++PrimitivePtr MindIR_Mod_CreatePrimitive();
++
++// ********** Neg **********
++PrimitivePtr MindIR_Neg_CreatePrimitive();
++
++// ********** Reciprocal **********
++PrimitivePtr MindIR_Reciprocal_CreatePrimitive();
++
++// ********** Sin **********
++PrimitivePtr MindIR_Sin_CreatePrimitive();
++
++// ********** Where **********
++PrimitivePtr MindIR_Where_CreatePrimitive();
++
++// ********** Log **********
++PrimitivePtr MindIR_Log_CreatePrimitive();
++
++// ********** LogicalOr **********
++PrimitivePtr MindIR_LogicalOr_CreatePrimitive();
++
++// ********** SparseToDense **********
++PrimitivePtr MindIR_SparseToDense_CreatePrimitive();
++
++// ********** Minimum **********
++PrimitivePtr MindIR_Minimum_CreatePrimitive();
++
++// ********** SpaceToDepth **********
++PrimitivePtr MindIR_SpaceToDepth_CreatePrimitive(int64_t block_size, Format format);
++int64_t MindIR_SpaceToDepth_GetBlockSize(ConstPrimitivePtr primitive);
++void MindIR_SpaceToDepth_SetBlockSize(PrimitivePtr *primitive, int64_t block_size);
++Format MindIR_SpaceToDepth_GetFormat(ConstPrimitivePtr primitive);
++void MindIR_SpaceToDepth_SetFormat(PrimitivePtr *primitive, Format format);
++
++// ********** Round **********
++PrimitivePtr MindIR_Round_CreatePrimitive();
++
++// ********** Ceil **********
++PrimitivePtr MindIR_Ceil_CreatePrimitive();
++
++// ********** Floor **********
++PrimitivePtr MindIR_Floor_CreatePrimitive();
++
++// ********** L2NormalizeFusion **********
++PrimitivePtr MindIR_L2NormalizeFusion_CreatePrimitive(const std::vector<int64_t>& axis, float epsilon, ActivationType activation_type);
++std::vector<int64_t> MindIR_L2NormalizeFusion_GetAxis(ConstPrimitivePtr primitive);
++void MindIR_L2NormalizeFusion_SetAxis(PrimitivePtr *primitive, const std::vector<int64_t>& axis);
++float MindIR_L2NormalizeFusion_GetEpsilon(ConstPrimitivePtr primitive);
++void MindIR_L2NormalizeFusion_SetEpsilon(PrimitivePtr *primitive, float epsilon);
++ActivationType MindIR_L2NormalizeFusion_GetActivationType(ConstPrimitivePtr primitive);
++void MindIR_L2NormalizeFusion_SetActivationType(PrimitivePtr *primitive, ActivationType activation_type);
++
++// ********** LRN **********
++PrimitivePtr MindIR_LRN_CreatePrimitive(int64_t depth_radius, float bias, float alpha, float beta, std::string norm_region);
++int64_t MindIR_LRN_GetDepthRadius(ConstPrimitivePtr primitive);
++void MindIR_LRN_SetDepthRadius(PrimitivePtr *primitive, int64_t depth_radius);
++float MindIR_LRN_GetBias(ConstPrimitivePtr primitive);
++void MindIR_LRN_SetBias(PrimitivePtr *primitive, float bias);
++float MindIR_LRN_GetAlpha(ConstPrimitivePtr primitive);
++void MindIR_LRN_SetAlpha(PrimitivePtr *primitive, float alpha);
++float MindIR_LRN_GetBeta(ConstPrimitivePtr primitive);
++void MindIR_LRN_SetBeta(PrimitivePtr *primitive, float beta);
++std::string MindIR_LRN_GetNormRegion(ConstPrimitivePtr primitive);
++void MindIR_LRN_SetNormRegion(PrimitivePtr *primitive, std::string norm_region);
++
++// ********** LogSoftmax **********
++PrimitivePtr MindIR_LogSoftmax_CreatePrimitive(int64_t axis);
++int64_t MindIR_LogSoftmax_GetAxis(ConstPrimitivePtr primitive);
++void MindIR_LogSoftmax_SetAxis(PrimitivePtr *primitive, int64_t axis);
++
++// ********** Crop **********
++PrimitivePtr MindIR_Crop_CreatePrimitive(int64_t axis, const std::vector<int64_t>& offsets);
++int64_t MindIR_Crop_GetAxis(ConstPrimitivePtr primitive);
++void MindIR_Crop_SetAxis(PrimitivePtr *primitive, int64_t axis);
++std::vector<int64_t> MindIR_Crop_GetOffsets(ConstPrimitivePtr primitive);
++void MindIR_Crop_SetOffsets(PrimitivePtr *primitive, const std::vector<int64_t>& offsets);
++
++// ********** DetectionPostProcess **********
++PrimitivePtr MindIR_DetectionPostProcess_CreatePrimitive(Format format, int64_t input_size, const std::vector<float>& scale, float nms_iou_threshold, float nms_score_threshold, int64_t max_detections, int64_t detections_per_class, int64_t max_classes_per_detection, int64_t num_classes, bool use_regular_nms, bool out_quantized);
++Format MindIR_DetectionPostProcess_GetFormat(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetFormat(PrimitivePtr *primitive, Format format);
++int64_t MindIR_DetectionPostProcess_GetInputSize(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetInputSize(PrimitivePtr *primitive, int64_t input_size);
++std::vector<float> MindIR_DetectionPostProcess_GetScale(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetScale(PrimitivePtr *primitive, const std::vector<float>& scale);
++float MindIR_DetectionPostProcess_GetNmsIouThreshold(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetNmsIouThreshold(PrimitivePtr *primitive, float nms_iou_threshold);
++float MindIR_DetectionPostProcess_GetNmsScoreThreshold(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetNmsScoreThreshold(PrimitivePtr *primitive, float nms_score_threshold);
++int64_t MindIR_DetectionPostProcess_GetMaxDetections(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetMaxDetections(PrimitivePtr *primitive, int64_t max_detections);
++int64_t MindIR_DetectionPostProcess_GetDetectionsPerClass(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetDetectionsPerClass(PrimitivePtr *primitive, int64_t detections_per_class);
++int64_t MindIR_DetectionPostProcess_GetMaxClassesPerDetection(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetMaxClassesPerDetection(PrimitivePtr *primitive, int64_t max_classes_per_detection);
++int64_t MindIR_DetectionPostProcess_GetNumClasses(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetNumClasses(PrimitivePtr *primitive, int64_t num_classes);
++bool MindIR_DetectionPostProcess_GetUseRegularNms(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetUseRegularNms(PrimitivePtr *primitive, bool use_regular_nms);
++bool MindIR_DetectionPostProcess_GetOutQuantized(ConstPrimitivePtr primitive);
++void MindIR_DetectionPostProcess_SetOutQuantized(PrimitivePtr *primitive, bool out_quantized);
++
++// ********** ScatterNd **********
++PrimitivePtr MindIR_ScatterNd_CreatePrimitive();
++
++// ********** Rank **********
++PrimitivePtr MindIR_Rank_CreatePrimitive();
++
++// ********** GatherNd **********
++PrimitivePtr MindIR_GatherNd_CreatePrimitive();
++
+ // ********** Custom **********
+ std::vector<const mindspore::schema::Attribute *> MindIR_Custom_GetAttr(ConstPrimitivePtr primitive);
+ std::string MindIR_Attribute_GetName(const mindspore::schema::Attribute &attr);
+diff --git a/mindspore/lite/mindir/include/mindir_types.h b/mindspore/lite/mindir/include/mindir_types.h
+index 3ee6aca1..5744441a 100644
+--- a/mindspore/lite/mindir/include/mindir_types.h
++++ b/mindspore/lite/mindir/include/mindir_types.h
+@@ -56,28 +56,36 @@ enum NodeType : uint32_t {
+   NODE_TYPE_ABS = 1,
+   NODE_TYPE_ACTIVATION = 2,
+   NODE_TYPE_ADD_FUSION = 5,
++  NODE_TYPE_ALL = 9,
+   NODE_TYPE_ARGMAX_FUSION = 11,
++  NODE_TYPE_ASSERT = 13,
+   NODE_TYPE_AVG_POOL_FUSION = 17,
+   NODE_TYPE_BATCH_TO_SPACE_ND = 22,
+   NODE_TYPE_BIAS_ADD = 23,
+   NODE_TYPE_BROADCAST_TO = 27,
+   NODE_TYPE_CAST = 28,
++  NODE_TYPE_CEIL = 29,
+   NODE_TYPE_CLIP = 30,
+   NODE_TYPE_CONCAT = 31,
+   NODE_TYPE_CONV2D_FUSION = 35,
+   NODE_TYPE_CONV2D_TRANSPOSE_FUSION = 36,
++  NODE_TYPE_COS = 37,
+   NODE_TYPE_CONSTANT_OF_SHAPE = 38,
++  NODE_TYPE_CROP = 39,
+   NODE_TYPE_DEPTH_TO_SPACE = 45,
++  NODE_TYPE_DETECTION_POST_PROCESS = 46,
+   NODE_TYPE_DIV_FUSION = 47,
+   NODE_TYPE_ELTWISE = 52,
+   NODE_TYPE_EQUAL = 53,
+   NODE_TYPE_EXPFUSION = 55,
+   NODE_TYPE_EXPAND_DIMS = 56,
+   NODE_TYPE_FLATTEN = 61,
++  NODE_TYPE_FLOOR = 63,
+   NODE_TYPE_FILL = 66,
+   NODE_TYPE_FULL_CONNECTION = 67,
+   NODE_TYPE_FUSED_BATCH_NORM = 68,
+   NODE_TYPE_GATHER = 69,
++  NODE_TYPE_GATHER_ND = 70,
+   NODE_TYPE_GREATER = 71,
+   NODE_TYPE_GREATER_EQUAL = 72,
+   NODE_TYPE_INSTANCE_NORM = 74,
+@@ -85,28 +93,44 @@ enum NodeType : uint32_t {
+   NODE_TYPE_LEAKY_RELU = 76,
+   NODE_TYPE_LESS = 77,
+   NODE_TYPE_LESS_EQUAL = 78,
++  NODE_TYPE_LOG = 79,
++  NODE_TYPE_LOGICAL_AND = 81,
++  NODE_TYPE_LOGICAL_NOT = 82,
++  NODE_TYPE_LOGICAL_OR = 83,
++  NODE_TYPE_L_R_N = 85,
+   NODE_TYPE_LSTM = 87,
++  NODE_TYPE_L2_NORMALIZE_FUSION = 88,
+   NODE_TYPE_MATMUL_FUSION = 89,
+   NODE_TYPE_MAXIMUM = 90,
+   NODE_TYPE_MAX_POOL_FUSION = 92,
++  NODE_TYPE_MINIMUM = 96,
++  NODE_TYPE_MOD = 98,
+   NODE_TYPE_MUL_FUSION = 99,
++  NODE_TYPE_NEG = 101,
+   NODE_TYPE_NOT_EQUAL = 103,
+   NODE_TYPE_ONE_HOT = 105,
+   NODE_TYPE_PAD_FUSION = 107,
+   NODE_TYPE_POW_FUSION = 110,
+   NODE_TYPE_PRELU_FUSION = 112,
+   NODE_TYPE_QUANT_DTYPE_CAST = 113,
++  NODE_TYPE_RANK = 114,
+   NODE_TYPE_RANGE = 115,
++  NODE_TYPE_RECIPROCAL = 116,
+   NODE_TYPE_REAL_DIV = 117,
+   NODE_TYPE_REDUCE_FUSION = 118,
+   NODE_TYPE_RESHAPE = 119,
+   NODE_TYPE_RESIZE = 120,
++  NODE_TYPE_ROUND = 125,
+   NODE_TYPE_RSQRT = 126,
+   NODE_TYPE_SCALE_FUSION = 127,
++  NODE_TYPE_SCATTER_ND = 128,
+   NODE_TYPE_SHAPE = 130,
++  NODE_TYPE_SIN = 133,
+   NODE_TYPE_SLICE_FUSION = 135,
+   NODE_TYPE_SOFTMAX = 138,
+   NODE_TYPE_SPACE_TO_BATCH_ND = 141,
++  NODE_TYPE_SPACE_TO_DEPTH = 142,
++  NODE_TYPE_SPARSE_TO_DENSE = 144,
+   NODE_TYPE_SPLIT = 145,
+   NODE_TYPE_SQRT = 146,
+   NODE_TYPE_SQUEEZE = 147,
+@@ -120,8 +144,10 @@ enum NodeType : uint32_t {
+   NODE_TYPE_TRANSPOSE = 162,
+   NODE_TYPE_UNSQUEEZE = 165,
+   NODE_TYPE_UNSTACK = 166,
++  NODE_TYPE_WHERE = 168,
+   NODE_TYPE_SELECT = 170,
+   NODE_TYPE_ERF = 178,
++  NODE_TYPE_LOG_SOFTMAX = 189,
+   NODE_TYPE_CUSTOM = 191,
+ };
+ 
+@@ -179,6 +205,7 @@ enum ReduceMode : int8_t {
+   REDUCE_MODE_SUM_SQUARE = 5,
+   REDUCE_MODE_ASUM = 6,
+   REDUCE_MODE_ALL = 7,
++  REDUCE_MODE_L2 = 8,
+ };
+ 
+ enum PoolMode : int8_t {
+diff --git a/mindspore/lite/mindir/src/mindir.cc b/mindspore/lite/mindir/src/mindir.cc
+index 36056c59..7041498a 100644
+--- a/mindspore/lite/mindir/src/mindir.cc
++++ b/mindspore/lite/mindir/src/mindir.cc
+@@ -2896,9 +2896,9 @@ void MindIR_PReLUFusion_SetChannelShared(PrimitivePtr *primitive, bool channel_s
+ }
+ 
+ // ********** QuantDTypeCast **********
+-PrimitivePtr MindIR_QuantDTypeCast_CreatePrimitive(int64_t src_t, int64_t dst_t) {
++PrimitivePtr MindIR_QuantDTypeCast_CreatePrimitive(int64_t src_t, int64_t dst_t, int64_t axis) {
+   flatbuffers::FlatBufferBuilder fbb;
+-  auto ops_offset = schema::CreateQuantDTypeCast(fbb, src_t, dst_t);
++  auto ops_offset = schema::CreateQuantDTypeCast(fbb, src_t, dst_t, axis);
+   auto prim_offset =
+     schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_QUANT_DTYPE_CAST), ops_offset.o);
+   fbb.Finish(prim_offset);
+@@ -2926,7 +2926,7 @@ void MindIR_QuantDTypeCast_SetSrcT(PrimitivePtr *primitive, int64_t src_t) {
+     auto value = prim->value_as_QuantDTypeCast();
+     if (prim != nullptr && value != nullptr) {
+       flatbuffers::FlatBufferBuilder fbb;
+-      auto ops_offset = schema::CreateQuantDTypeCast(fbb, src_t, value->dst_t());
++      auto ops_offset = schema::CreateQuantDTypeCast(fbb, src_t, value->dst_t(), value->axis());
+       auto prim_offset =
+         schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_QUANT_DTYPE_CAST), ops_offset.o);
+       fbb.Finish(prim_offset);
+@@ -2956,7 +2956,38 @@ void MindIR_QuantDTypeCast_SetDstT(PrimitivePtr *primitive, int64_t dst_t) {
+     auto value = prim->value_as_QuantDTypeCast();
+     if (prim != nullptr && value != nullptr) {
+       flatbuffers::FlatBufferBuilder fbb;
+-      auto ops_offset = schema::CreateQuantDTypeCast(fbb, value->src_t(), dst_t);
++      auto ops_offset = schema::CreateQuantDTypeCast(fbb, value->src_t(), dst_t, value->axis());
++      auto prim_offset =
++        schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_QUANT_DTYPE_CAST), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_QuantDTypeCast_GetAxis(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_QuantDTypeCast();
++    if (prim != nullptr && value != nullptr) {
++      return value->axis();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_QuantDTypeCast_SetAxis(PrimitivePtr *primitive, int64_t axis) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_QuantDTypeCast();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateQuantDTypeCast(fbb, value->src_t(), value->dst_t(), axis);
+       auto prim_offset =
+         schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_QUANT_DTYPE_CAST), ops_offset.o);
+       fbb.Finish(prim_offset);
+@@ -5518,6 +5549,1114 @@ void MindIR_Clip_SetMin(PrimitivePtr *primitive, float min) {
+   }
+ }
+ 
++// ********** All **********
++PrimitivePtr MindIR_All_CreatePrimitive(int64_t keep_dims) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateAll(fbb, keep_dims);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_ALL), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_All_GetKeepDims(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_All();
++    if (prim != nullptr && value != nullptr) {
++      return value->keep_dims();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_All_SetKeepDims(PrimitivePtr *primitive, int64_t keep_dims) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_All();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateAll(fbb, keep_dims);
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_ALL), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** Assert **********
++PrimitivePtr MindIR_Assert_CreatePrimitive(int64_t summarize) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateAssert(fbb, summarize);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_ASSERT), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_Assert_GetSummarize(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Assert();
++    if (prim != nullptr && value != nullptr) {
++      return value->summarize();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Assert_SetSummarize(PrimitivePtr *primitive, int64_t summarize) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Assert();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateAssert(fbb, summarize);
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_ASSERT), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, prim);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** LogicalAnd **********
++PrimitivePtr MindIR_LogicalAnd_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLogicalAnd(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LOGICAL_AND), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** LogicalNot **********
++PrimitivePtr MindIR_LogicalNot_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLogicalNot(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LOGICAL_NOT), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Cos **********
++PrimitivePtr MindIR_Cos_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateCos(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_COS), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Mod **********
++PrimitivePtr MindIR_Mod_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateMod(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_MOD), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Neg **********
++PrimitivePtr MindIR_Neg_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateNeg(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_NEG), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Reciprocal **********
++PrimitivePtr MindIR_Reciprocal_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateReciprocal(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_RECIPROCAL), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Sin **********
++PrimitivePtr MindIR_Sin_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateSin(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SIN), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Where **********
++PrimitivePtr MindIR_Where_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateWhere(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_WHERE), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Log **********
++PrimitivePtr MindIR_Log_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLog(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LOG), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** LogicalOr **********
++PrimitivePtr MindIR_LogicalOr_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLogicalOr(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LOGICAL_OR), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** SparseToDense **********
++PrimitivePtr MindIR_SparseToDense_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateSparseToDense(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SPARSE_TO_DENSE), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Minimum **********
++PrimitivePtr MindIR_Minimum_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateMinimum(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_MINIMUM), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** SpaceToDepth **********
++PrimitivePtr MindIR_SpaceToDepth_CreatePrimitive(int64_t block_size, Format format) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateSpaceToDepth(fbb, block_size, static_cast<schema::Format>(format));
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SPACE_TO_DEPTH), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_SpaceToDepth_GetBlockSize(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_SpaceToDepth();
++    if (prim != nullptr && value != nullptr) {
++      return value->block_size();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_SpaceToDepth_SetBlockSize(PrimitivePtr *primitive, int64_t block_size) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_SpaceToDepth();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateSpaceToDepth(fbb, block_size, static_cast<schema::Format>(value->format()));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SPACE_TO_DEPTH), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++Format MindIR_SpaceToDepth_GetFormat(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_SpaceToDepth();
++    if (prim != nullptr && value != nullptr) {
++      return static_cast<Format>(value->format());
++    } else {
++      Format en = static_cast<Format>(0);
++      return en;
++    }
++  } else {
++    Format en = static_cast<Format>(0);
++    return en;
++  }
++}
++
++void MindIR_SpaceToDepth_SetFormat(PrimitivePtr *primitive, Format format) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_SpaceToDepth();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateSpaceToDepth(fbb, value->block_size(), static_cast<schema::Format>(format));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SPACE_TO_DEPTH), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** Round **********
++PrimitivePtr MindIR_Round_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateRound(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_ROUND), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Ceil **********
++PrimitivePtr MindIR_Ceil_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateCeil(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CEIL), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Floor **********
++PrimitivePtr MindIR_Floor_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateFloor(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_FLOOR), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** L2NormalizeFusion **********
++PrimitivePtr MindIR_L2NormalizeFusion_CreatePrimitive(const std::vector<int64_t> &axis, float epsilon, ActivationType activation_type) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateL2NormalizeFusion(fbb, fbb.CreateVector(axis.data(), axis.size()), epsilon, static_cast<schema::ActivationType>(activation_type));
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L2_NORMALIZE_FUSION), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++std::vector<int64_t> MindIR_L2NormalizeFusion_GetAxis(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_L2NormalizeFusion();
++    if (prim != nullptr && value != nullptr) {
++      std::vector<int64_t> result;
++      auto src = value->axis();
++      result.resize(src->size());
++      std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
++      return result;
++    } else {
++      return {};
++    }
++  } else {
++    return {};
++  }
++}
++
++void MindIR_L2NormalizeFusion_SetAxis(PrimitivePtr *primitive, const std::vector<int64_t> &axis) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_L2NormalizeFusion();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateL2NormalizeFusion(fbb, fbb.CreateVector(axis.data(), axis.size()), value->epsilon(), static_cast<schema::ActivationType>(value->activation_type()));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L2_NORMALIZE_FUSION), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_L2NormalizeFusion_GetEpsilon(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_L2NormalizeFusion();
++    if (prim != nullptr && value != nullptr) {
++      return value->epsilon();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_L2NormalizeFusion_SetEpsilon(PrimitivePtr *primitive, float epsilon) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_L2NormalizeFusion();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateL2NormalizeFusion(fbb, fbb.CreateVector(value->axis()->data(), value->axis()->size()), epsilon, static_cast<schema::ActivationType>(value->activation_type()));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L2_NORMALIZE_FUSION), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++ActivationType MindIR_L2NormalizeFusion_GetActivationType(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_L2NormalizeFusion();
++    if (prim != nullptr && value != nullptr) {
++      return static_cast<ActivationType>(value->activation_type());
++    } else {
++      ActivationType en = static_cast<ActivationType>(0);
++      return en;
++    }
++  } else {
++    ActivationType en = static_cast<ActivationType>(0);
++    return en;
++  }
++}
++
++void MindIR_L2NormalizeFusion_SetActivationType(PrimitivePtr *primitive, ActivationType activation_type) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_L2NormalizeFusion();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateL2NormalizeFusion(fbb, fbb.CreateVector(value->axis()->data(), value->axis()->size()), value->epsilon(), static_cast<schema::ActivationType>(activation_type));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L2_NORMALIZE_FUSION), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** LRN **********
++PrimitivePtr MindIR_LRN_CreatePrimitive(int64_t depth_radius, float bias, float alpha, float beta, std::string norm_region) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLRN(fbb, depth_radius, bias, alpha, beta, fbb.CreateString(norm_region));
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L_R_N), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_LRN_GetDepthRadius(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      return value->depth_radius();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_LRN_SetDepthRadius(PrimitivePtr *primitive, int64_t depth_radius) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateLRN(fbb, depth_radius, value->bias(), value->alpha(), value->beta(), fbb.CreateString(std::string(value->norm_region()->c_str(), value->norm_region()->size())));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L_R_N), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_LRN_GetBias(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      return value->bias();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_LRN_SetBias(PrimitivePtr *primitive, float bias) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateLRN(fbb, value->depth_radius(), bias, value->alpha(), value->beta(), fbb.CreateString(std::string(value->norm_region()->c_str(), value->norm_region()->size())));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L_R_N), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_LRN_GetAlpha(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      return value->alpha();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_LRN_SetAlpha(PrimitivePtr *primitive, float alpha) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateLRN(fbb, value->depth_radius(), value->bias(), alpha, value->beta(), fbb.CreateString(std::string(value->norm_region()->c_str(), value->norm_region()->size())));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L_R_N), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_LRN_GetBeta(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      return value->beta();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_LRN_SetBeta(PrimitivePtr *primitive, float beta) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateLRN(fbb, value->depth_radius(), value->bias(), value->alpha(), beta, fbb.CreateString(std::string(value->norm_region()->c_str(), value->norm_region()->size())));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L_R_N), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++std::string MindIR_LRN_GetNormRegion(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      return std::string(value->norm_region()->c_str(),value->norm_region()->size());
++    } else {
++      return nullptr;
++    }
++  } else {
++    return nullptr;
++  }
++}
++
++void MindIR_LRN_SetNormRegion(PrimitivePtr *primitive, std::string norm_region) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LRN();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateLRN(fbb, value->depth_radius(), value->bias(), value->alpha(), value->beta(), fbb.CreateString(norm_region));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_L_R_N), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** LogSoftmax **********
++PrimitivePtr MindIR_LogSoftmax_CreatePrimitive(int64_t axis) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateLogSoftmax(fbb, axis);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LOG_SOFTMAX), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_LogSoftmax_GetAxis(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_LogSoftmax();
++    if (prim != nullptr && value != nullptr) {
++      return value->axis();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_LogSoftmax_SetAxis(PrimitivePtr *primitive, int64_t axis) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_LogSoftmax();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateLogSoftmax(fbb, axis);
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_LOG_SOFTMAX), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** Crop **********
++PrimitivePtr MindIR_Crop_CreatePrimitive(int64_t axis, const std::vector<int64_t> &offsets) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateCrop(fbb, axis, fbb.CreateVector(offsets.data(), offsets.size()));
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CROP), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++int64_t MindIR_Crop_GetAxis(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Crop();
++    if (prim != nullptr && value != nullptr) {
++      return value->axis();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_Crop_SetAxis(PrimitivePtr *primitive, int64_t axis) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Crop();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateCrop(fbb, axis, fbb.CreateVector(value->offsets()->data(), value->offsets()->size()));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CROP), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++std::vector<int64_t> MindIR_Crop_GetOffsets(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_Crop();
++    if (prim != nullptr && value != nullptr) {
++      std::vector<int64_t> result;
++      auto src = value->offsets();
++      result.resize(src->size());
++      std::transform(src->begin(), src->end(), result.begin(), [](int64_t item) { return item; });
++      return result;
++    } else {
++      return {};
++    }
++  } else {
++    return {};
++  }
++}
++
++void MindIR_Crop_SetOffsets(PrimitivePtr *primitive, const std::vector<int64_t> &offsets) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_Crop();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateCrop(fbb, value->axis(), fbb.CreateVector(offsets.data(), offsets.size()));
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_CROP), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** DetectionPostProcess **********
++PrimitivePtr MindIR_DetectionPostProcess_CreatePrimitive(Format format, int64_t input_size, const std::vector<float> &scale, float nms_iou_threshold, float nms_score_threshold, int64_t max_detections, int64_t detections_per_class, int64_t max_classes_per_detection, int64_t num_classes, bool use_regular_nms, bool out_quantized) {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(format), input_size, fbb.CreateVector(scale.data(), scale.size()), nms_iou_threshold, nms_score_threshold, max_detections, detections_per_class, max_classes_per_detection, num_classes, use_regular_nms, out_quantized);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++Format MindIR_DetectionPostProcess_GetFormat(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return static_cast<Format>(value->format());
++    } else {
++      Format en = static_cast<Format>(0);
++      return en;
++    }
++  } else {
++    Format en = static_cast<Format>(0);
++    return en;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetFormat(PrimitivePtr *primitive, Format format) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(format), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_DetectionPostProcess_GetInputSize(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->input_size();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetInputSize(PrimitivePtr *primitive, int64_t input_size) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), input_size, fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++std::vector<float> MindIR_DetectionPostProcess_GetScale(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      std::vector<float> result;
++      auto src = value->scale();
++      result.resize(src->size());
++      std::transform(src->begin(), src->end(), result.begin(), [](float item) { return item; });
++      return result;
++    } else {
++      return {};
++    }
++  } else {
++    return {};
++  }
++}
++
++void MindIR_DetectionPostProcess_SetScale(PrimitivePtr *primitive, const std::vector<float> &scale) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(scale.data(), scale.size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_DetectionPostProcess_GetNmsIouThreshold(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->nms_iou_threshold();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetNmsIouThreshold(PrimitivePtr *primitive, float nms_iou_threshold) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), nms_iou_threshold, value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++float MindIR_DetectionPostProcess_GetNmsScoreThreshold(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->nms_score_threshold();
++    } else {
++      return .0;
++    }
++  } else {
++    return .0;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetNmsScoreThreshold(PrimitivePtr *primitive, float nms_score_threshold) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), nms_score_threshold, value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_DetectionPostProcess_GetMaxDetections(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->max_detections();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetMaxDetections(PrimitivePtr *primitive, int64_t max_detections) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), max_detections, value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_DetectionPostProcess_GetDetectionsPerClass(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->detections_per_class();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetDetectionsPerClass(PrimitivePtr *primitive, int64_t detections_per_class) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), detections_per_class, value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_DetectionPostProcess_GetMaxClassesPerDetection(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->max_classes_per_detection();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetMaxClassesPerDetection(PrimitivePtr *primitive, int64_t max_classes_per_detection) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), max_classes_per_detection, value->num_classes(), value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++int64_t MindIR_DetectionPostProcess_GetNumClasses(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->num_classes();
++    } else {
++      return 0;
++    }
++  } else {
++    return 0;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetNumClasses(PrimitivePtr *primitive, int64_t num_classes) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), num_classes, value->use_regular_nms(), value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++bool MindIR_DetectionPostProcess_GetUseRegularNms(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->use_regular_nms();
++    } else {
++      return false;
++    }
++  } else {
++    return false;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetUseRegularNms(PrimitivePtr *primitive, bool use_regular_nms) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), use_regular_nms, value->out_quantized());
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++bool MindIR_DetectionPostProcess_GetOutQuantized(ConstPrimitivePtr primitive) {
++  if (primitive != nullptr) {
++    auto prim = static_cast<const schema::Primitive *>(primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      return value->out_quantized();
++    } else {
++      return false;
++    }
++  } else {
++    return false;
++  }
++}
++
++void MindIR_DetectionPostProcess_SetOutQuantized(PrimitivePtr *primitive, bool out_quantized) {
++  if (primitive != nullptr && *primitive != nullptr) {
++    auto prim = static_cast<schema::Primitive *>(*primitive);
++    auto value = prim->value_as_DetectionPostProcess();
++    if (prim != nullptr && value != nullptr) {
++      flatbuffers::FlatBufferBuilder fbb;
++      auto ops_offset = schema::CreateDetectionPostProcess(fbb, static_cast<schema::Format>(value->format()), value->input_size(), fbb.CreateVector(value->scale()->data(), value->scale()->size()), value->nms_iou_threshold(), value->nms_score_threshold(), value->max_detections(), value->detections_per_class(), value->max_classes_per_detection(), value->num_classes(), value->use_regular_nms(), out_quantized);
++      auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_DETECTION_POST_PROCESS), ops_offset.o);
++      fbb.Finish(prim_offset);
++      auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++      auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++      free(*primitive);
++      *primitive = ret_value;
++    }
++  }
++}
++
++// ********** ScatterNd **********
++PrimitivePtr MindIR_ScatterNd_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateScatterNd(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_SCATTER_ND), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** Rank **********
++PrimitivePtr MindIR_Rank_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateRank(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_RANK), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
++// ********** GatherNd **********
++PrimitivePtr MindIR_GatherNd_CreatePrimitive() {
++  flatbuffers::FlatBufferBuilder fbb;
++  auto ops_offset = schema::CreateGatherNd(fbb);
++  auto prim_offset = schema::CreatePrimitive(fbb, static_cast<schema::PrimitiveType>(NODE_TYPE_GATHER_ND), ops_offset.o);
++  fbb.Finish(prim_offset);
++  auto new_addr = MindIRMemoryManager::GetInstance()->CreatePrimitiveFromBuilder(fbb, nullptr);
++  auto ret_value = flatbuffers::GetMutableRoot<schema::Primitive>(new_addr);
++  return ret_value;
++}
++
+ // ********** Custom **********
+ std::vector<const mindspore::schema::Attribute *> MindIR_Custom_GetAttr(ConstPrimitivePtr primitive) {
+   if (primitive == nullptr) {
+-- 
+2.17.1
+

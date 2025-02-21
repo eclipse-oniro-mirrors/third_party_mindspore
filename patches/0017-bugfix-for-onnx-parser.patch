@@ -1,0 +1,27 @@
+From 5d65239d88236e76fffe9900a1f58fbdc83e68c9 Mon Sep 17 00:00:00 2001
+From: zhangyanhui <zhangyanhui17@huawei.com>
+Date: Thu, 11 Apr 2024 17:14:06 +0800
+Subject: [PATCH] bugfix for onnx parser
+
+---
+ .../lite/tools/converter/parser/onnx/onnx_model_parser.cc     | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/mindspore/lite/tools/converter/parser/onnx/onnx_model_parser.cc b/mindspore/lite/tools/converter/parser/onnx/onnx_model_parser.cc
+index 85d55445..30178ef0 100644
+--- a/mindspore/lite/tools/converter/parser/onnx/onnx_model_parser.cc
++++ b/mindspore/lite/tools/converter/parser/onnx/onnx_model_parser.cc
+@@ -344,7 +344,9 @@ STATUS BuildOpOutputs(const onnx::NodeProto &onnx_node, const FuncGraphPtr &anf_
+     CHECK_NULL_RETURN(new_abstract_list);
+     cnode->set_abstract(new_abstract_list);
+   }
+-  anf_nodes_map->emplace(onnx_node.name(), cnode);
++  if (onnx_node.op_type() == "Loop" || onnx_node.op_type() == "If") {
++    anf_nodes_map->emplace(onnx_node.name(), cnode);
++  }
+   return RET_OK;
+ }
+ 
+-- 
+2.25.1
+
