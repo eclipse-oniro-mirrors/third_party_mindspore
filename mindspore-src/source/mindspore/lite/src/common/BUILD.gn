@@ -1,0 +1,87 @@
+import("//build/ohos.gni")
+
+lite_src_common_mid_sources = [
+  "config_file.cc",
+  "config_infos.cc",
+  "context_util.cc",
+  "dynamic_library_loader.cc",
+  "file_utils.cc",
+  "graph_util.cc",
+  "helper/external_tensor/file_helper.cc",
+  "helper/external_tensor/memory_helper.cc",
+  "hi_app_event/hi_app_event.cc",
+  "hi_app_event/hi_app_event_thread.cc",
+  "log.cc",
+  "mmap_utils.cc",
+  "prim_util.cc",
+  "random_data_generator.cc",
+  "string_util.cc",
+  "tensor_util.cc",
+  "thread_utils.cc",
+  "utils.cc",
+]
+
+ohos_source_set("lite_common_mid_obj") {
+  sources = lite_src_common_mid_sources
+
+  include_dirs = [
+    "../",
+    "../../",
+    "../../../../",
+    "../../../core/",
+    "../../../../../../../../third_party/flatbuffers/include/",
+    "../../../../third_party/",
+    "../../../ccsrc/plugin/device/cpu/kernel/",
+    "../../../core/mindrt/src/",
+    "../../../../../../../../base/hiviewdfx/hilog/interfaces/native/innerkits/include",
+  ]
+
+  external_deps = [
+    "hiappevent:hiappevent_innerapi",
+    "hilog:libhilog",
+  ]
+
+  configs = [
+    "../../:disable_android",
+    "../../:secure_option",
+  ]
+
+  defines = [
+    "ENABLE_MINDRT",
+    "MS_COMPILE_OHOS",
+    "PRIMITIVE_WRITEABLE",
+    "VERSION_STR=\"2.3.0\"",
+    "ENABLE_HI_APP_EVENT",
+  ]
+  if (target_cpu == "arm") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM32",
+      "ENABLE_NEON",
+    ]
+  } else if (target_cpu == "arm64") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM64",
+      "ENABLE_NEON",
+      "ENABLE_FP16",
+      "USE_OPENCL_WRAPPER",
+      "MS_OPENCL_PROFILE=false",
+      "CL_TARGET_OPENCL_VERSION=200",
+      "CL_HPP_TARGET_OPENCL_VERSION=120",
+      "CL_HPP_MINIMUM_OPENCL_VERSION=120",
+    ]
+  }
+
+  cflags_cc = [
+    "-Wno-ignored-qualifiers",
+    "-Wunused-private-field",
+    "-Wno-unused-private-field",
+    "-Wno-inconsistent-missing-override",
+    "-Wno-macro-redefined",
+    "-Wno-constant-conversion",
+  ]
+
+  part_name = "mindspore"
+  subsystem_name = "thirdparty"
+}

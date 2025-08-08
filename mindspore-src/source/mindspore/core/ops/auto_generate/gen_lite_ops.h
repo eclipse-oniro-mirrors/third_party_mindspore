@@ -1,0 +1,2975 @@
+/**
+ * Copyright 2023 Huawei Technologies Co., Ltd
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#ifndef MINDSPORE_CORE_OPS_GEN_LITE_OPS_H_
+#define MINDSPORE_CORE_OPS_GEN_LITE_OPS_H_
+
+#include <vector>
+#include "ops/base_operator.h"
+#include "ops/auto_generate/gen_ops_name.h"
+
+namespace mindspore::ops {
+class MIND_API ACosGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ACosGrad);
+  ACosGrad() : BaseOperator(kNameACosGrad) {}
+};
+
+class MIND_API AbsGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AbsGrad);
+  AbsGrad() : BaseOperator(kNameAbsGrad) {}
+};
+
+class MIND_API Abs : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Abs);
+  Abs() : BaseOperator(kNameAbs) {}
+};
+
+class MIND_API ACos : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ACos);
+  ACos() : BaseOperator(kNameACos) {}
+};
+
+class MIND_API AcoshGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AcoshGrad);
+  AcoshGrad() : BaseOperator(kNameAcoshGrad) {}
+};
+
+class MIND_API Acosh : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Acosh);
+  Acosh() : BaseOperator(kNameAcosh) {}
+};
+
+class MIND_API AdamWeightDecay : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AdamWeightDecay);
+  AdamWeightDecay() : BaseOperator(kNameAdamWeightDecay) {}
+  void set_use_locking(const bool &use_locking);
+  bool get_use_locking() const;
+};
+
+class MIND_API AdamW : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AdamW);
+  AdamW() : BaseOperator(kNameAdamW) {}
+};
+
+class MIND_API AddExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AddExt);
+  AddExt() : BaseOperator(kNameAddExt) {}
+};
+
+class MIND_API AddLayerNormV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AddLayerNormV2);
+  AddLayerNormV2() : BaseOperator(kNameAddLayerNormV2) {}
+};
+
+class MIND_API Add : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Add);
+  Add() : BaseOperator(kNameAdd) {}
+};
+
+class MIND_API Addcdiv : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Addcdiv);
+  Addcdiv() : BaseOperator(kNameAddcdiv) {}
+};
+
+class MIND_API Addcmul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Addcmul);
+  Addcmul() : BaseOperator(kNameAddcmul) {}
+};
+
+class MIND_API Addmm : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Addmm);
+  Addmm() : BaseOperator(kNameAddmm) {}
+};
+
+class MIND_API AddN : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AddN);
+  AddN() : BaseOperator(kNameAddN) {}
+};
+
+class MIND_API Angle : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Angle);
+  Angle() : BaseOperator(kNameAngle) {}
+};
+
+class MIND_API ApplyCamePart1 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ApplyCamePart1);
+  ApplyCamePart1() : BaseOperator(kNameApplyCamePart1) {}
+};
+
+class MIND_API ApplyCamePart2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ApplyCamePart2);
+  ApplyCamePart2() : BaseOperator(kNameApplyCamePart2) {}
+};
+
+class MIND_API ApplyCamePart3 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ApplyCamePart3);
+  ApplyCamePart3() : BaseOperator(kNameApplyCamePart3) {}
+};
+
+class MIND_API ApplyCamePart4 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ApplyCamePart4);
+  ApplyCamePart4() : BaseOperator(kNameApplyCamePart4) {}
+};
+
+class MIND_API ApplyRotaryPosEmb : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ApplyRotaryPosEmb);
+  ApplyRotaryPosEmb() : BaseOperator(kNameApplyRotaryPosEmb) {}
+  void set_cos_format(const int64_t &cos_format);
+  int64_t get_cos_format() const;
+};
+
+class MIND_API Arange : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Arange);
+  Arange() : BaseOperator(kNameArange) {}
+};
+
+class MIND_API ArgMaxExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ArgMaxExt);
+  ArgMaxExt() : BaseOperator(kNameArgMaxExt) {}
+};
+
+class MIND_API Argmax : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Argmax);
+  Argmax() : BaseOperator(kNameArgmax) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+  void set_output_type(const int64_t &output_type);
+  int64_t get_output_type() const;
+};
+
+class MIND_API ArgMaxWithValue : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ArgMaxWithValue);
+  ArgMaxWithValue() : BaseOperator(kNameArgMaxWithValue) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API Argmin : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Argmin);
+  Argmin() : BaseOperator(kNameArgmin) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+  void set_output_type(const int64_t &output_type);
+  int64_t get_output_type() const;
+};
+
+class MIND_API ArgMinWithValue : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ArgMinWithValue);
+  ArgMinWithValue() : BaseOperator(kNameArgMinWithValue) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API AsinGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AsinGrad);
+  AsinGrad() : BaseOperator(kNameAsinGrad) {}
+};
+
+class MIND_API Asin : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Asin);
+  Asin() : BaseOperator(kNameAsin) {}
+};
+
+class MIND_API AsinhGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AsinhGrad);
+  AsinhGrad() : BaseOperator(kNameAsinhGrad) {}
+};
+
+class MIND_API Asinh : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Asinh);
+  Asinh() : BaseOperator(kNameAsinh) {}
+};
+
+class MIND_API AssignAdd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AssignAdd);
+  AssignAdd() : BaseOperator(kNameAssignAdd) {}
+};
+
+class MIND_API Assign : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Assign);
+  Assign() : BaseOperator(kNameAssign) {}
+};
+
+class MIND_API Atan2Ext : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Atan2Ext);
+  Atan2Ext() : BaseOperator(kNameAtan2Ext) {}
+};
+
+class MIND_API Atan2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Atan2);
+  Atan2() : BaseOperator(kNameAtan2) {}
+};
+
+class MIND_API AtanGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AtanGrad);
+  AtanGrad() : BaseOperator(kNameAtanGrad) {}
+};
+
+class MIND_API Atan : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Atan);
+  Atan() : BaseOperator(kNameAtan) {}
+};
+
+class MIND_API Atanh : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Atanh);
+  Atanh() : BaseOperator(kNameAtanh) {}
+};
+
+class MIND_API AvgPool2DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AvgPool2DGrad);
+  AvgPool2DGrad() : BaseOperator(kNameAvgPool2DGrad) {}
+};
+
+class MIND_API AvgPool2D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AvgPool2D);
+  AvgPool2D() : BaseOperator(kNameAvgPool2D) {}
+};
+
+class MIND_API AvgPoolGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AvgPoolGrad);
+  AvgPoolGrad() : BaseOperator(kNameAvgPoolGrad) {}
+  void set_kernel_size(const std::vector<int64_t> &kernel_size);
+  std::vector<int64_t> get_kernel_size() const;
+  void set_strides(const std::vector<int64_t> &strides);
+  std::vector<int64_t> get_strides() const;
+  void set_pad_mode(const int64_t &pad_mode);
+  int64_t get_pad_mode() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API AvgPool : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(AvgPool);
+  AvgPool() : BaseOperator(kNameAvgPool) {}
+  void set_kernel_size(const std::vector<int64_t> &kernel_size);
+  std::vector<int64_t> get_kernel_size() const;
+  void set_strides(const std::vector<int64_t> &strides);
+  std::vector<int64_t> get_strides() const;
+  void set_pad_mode(const int64_t &pad_mode);
+  int64_t get_pad_mode() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BatchMatMul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchMatMul);
+  BatchMatMul() : BaseOperator(kNameBatchMatMul) {}
+  void set_transpose_a(const bool &transpose_a);
+  bool get_transpose_a() const;
+  void set_transpose_b(const bool &transpose_b);
+  bool get_transpose_b() const;
+};
+
+class MIND_API BatchNormExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNormExt);
+  BatchNormExt() : BaseOperator(kNameBatchNormExt) {}
+};
+
+class MIND_API BatchNormGradExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNormGradExt);
+  BatchNormGradExt() : BaseOperator(kNameBatchNormGradExt) {}
+  void set_training(const bool &training);
+  bool get_training() const;
+  void set_eps(const float &eps);
+  float get_eps() const;
+};
+
+class MIND_API BatchNormGradGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNormGradGrad);
+  BatchNormGradGrad() : BaseOperator(kNameBatchNormGradGrad) {}
+  void set_is_training(const bool &is_training);
+  bool get_is_training() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BatchNormGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNormGrad);
+  BatchNormGrad() : BaseOperator(kNameBatchNormGrad) {}
+  void set_is_training(const bool &is_training);
+  bool get_is_training() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BatchNormGradWithActivation : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNormGradWithActivation);
+  BatchNormGradWithActivation() : BaseOperator(kNameBatchNormGradWithActivation) {}
+  void set_is_training(const bool &is_training);
+  bool get_is_training() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BatchNorm : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNorm);
+  BatchNorm() : BaseOperator(kNameBatchNorm) {}
+  void set_is_training(const bool &is_training);
+  bool get_is_training() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+  void set_momentum(const float &momentum);
+  float get_momentum() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BatchNormWithActivation : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNormWithActivation);
+  BatchNormWithActivation() : BaseOperator(kNameBatchNormWithActivation) {}
+  void set_is_training(const bool &is_training);
+  bool get_is_training() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+  void set_momentum(const float &momentum);
+  float get_momentum() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BatchNormWithAddAndActivation : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchNormWithAddAndActivation);
+  BatchNormWithAddAndActivation() : BaseOperator(kNameBatchNormWithAddAndActivation) {}
+  void set_is_training(const bool &is_training);
+  bool get_is_training() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+  void set_momentum(const float &momentum);
+  float get_momentum() const;
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API Betainc : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Betainc);
+  Betainc() : BaseOperator(kNameBetainc) {}
+};
+
+class MIND_API BiasAddGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BiasAddGrad);
+  BiasAddGrad() : BaseOperator(kNameBiasAddGrad) {}
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BiasAdd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BiasAdd);
+  BiasAdd() : BaseOperator(kNameBiasAdd) {}
+  void set_data_format(const int64_t &data_format);
+  int64_t get_data_format() const;
+};
+
+class MIND_API BinaryCrossEntropyGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BinaryCrossEntropyGrad);
+  BinaryCrossEntropyGrad() : BaseOperator(kNameBinaryCrossEntropyGrad) {}
+  void set_reduction(const int64_t &reduction);
+  int64_t get_reduction() const;
+};
+
+class MIND_API BinaryCrossEntropy : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BinaryCrossEntropy);
+  BinaryCrossEntropy() : BaseOperator(kNameBinaryCrossEntropy) {}
+  void set_reduction(const int64_t &reduction);
+  int64_t get_reduction() const;
+};
+
+class MIND_API BinaryCrossEntropyWithLogitsBackward : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BinaryCrossEntropyWithLogitsBackward);
+  BinaryCrossEntropyWithLogitsBackward() : BaseOperator(kNameBinaryCrossEntropyWithLogitsBackward) {}
+};
+
+class MIND_API BCEWithLogitsLoss : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BCEWithLogitsLoss);
+  BCEWithLogitsLoss() : BaseOperator(kNameBCEWithLogitsLoss) {}
+  void set_reduction(const int64_t &reduction);
+  int64_t get_reduction() const;
+};
+
+class MIND_API BatchMatMulExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BatchMatMulExt);
+  BatchMatMulExt() : BaseOperator(kNameBatchMatMulExt) {}
+};
+
+class MIND_API BoolNot : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BoolNot);
+  BoolNot() : BaseOperator(kNameBoolNot) {}
+};
+
+class MIND_API BroadcastTo : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(BroadcastTo);
+  BroadcastTo() : BaseOperator(kNameBroadcastTo) {}
+  void set_shape(const std::vector<int64_t> &shape);
+  std::vector<int64_t> get_shape() const;
+};
+
+class MIND_API Cast : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Cast);
+  Cast() : BaseOperator(kNameCast) {}
+};
+
+class MIND_API Ceil : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Ceil);
+  Ceil() : BaseOperator(kNameCeil) {}
+};
+
+class MIND_API CeLU : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(CeLU);
+  CeLU() : BaseOperator(kNameCeLU) {}
+  void set_alpha(const float &alpha);
+  float get_alpha() const;
+};
+
+class MIND_API CholeskyGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(CholeskyGrad);
+  CholeskyGrad() : BaseOperator(kNameCholeskyGrad) {}
+};
+
+class MIND_API CholeskyInverse : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(CholeskyInverse);
+  CholeskyInverse() : BaseOperator(kNameCholeskyInverse) {}
+  void set_upper(const bool &upper);
+  bool get_upper() const;
+};
+
+class MIND_API Cholesky : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Cholesky);
+  Cholesky() : BaseOperator(kNameCholesky) {}
+  void set_upper(const bool &upper);
+  bool get_upper() const;
+};
+
+class MIND_API Chunk : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Chunk);
+  Chunk() : BaseOperator(kNameChunk) {}
+};
+
+class MIND_API ClampScalar : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ClampScalar);
+  ClampScalar() : BaseOperator(kNameClampScalar) {}
+};
+
+class MIND_API ClampTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ClampTensor);
+  ClampTensor() : BaseOperator(kNameClampTensor) {}
+};
+
+class MIND_API Col2ImExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Col2ImExt);
+  Col2ImExt() : BaseOperator(kNameCol2ImExt) {}
+};
+
+class MIND_API Col2ImGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Col2ImGrad);
+  Col2ImGrad() : BaseOperator(kNameCol2ImGrad) {}
+};
+
+class MIND_API Complex : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Complex);
+  Complex() : BaseOperator(kNameComplex) {}
+};
+
+class MIND_API Concat : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Concat);
+  Concat() : BaseOperator(kNameConcat) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API Conj : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Conj);
+  Conj() : BaseOperator(kNameConj) {}
+};
+
+class MIND_API ConstantPadND : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ConstantPadND);
+  ConstantPadND() : BaseOperator(kNameConstantPadND) {}
+};
+
+class MIND_API Contiguous : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Contiguous);
+  Contiguous() : BaseOperator(kNameContiguous) {}
+};
+
+class MIND_API ConvolutionGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ConvolutionGrad);
+  ConvolutionGrad() : BaseOperator(kNameConvolutionGrad) {}
+  void set_stride(const std::vector<int64_t> &stride);
+  std::vector<int64_t> get_stride() const;
+  void set_padding(const std::vector<int64_t> &padding);
+  std::vector<int64_t> get_padding() const;
+  void set_dilation(const std::vector<int64_t> &dilation);
+  std::vector<int64_t> get_dilation() const;
+  void set_transposed(const bool &transposed);
+  bool get_transposed() const;
+  void set_output_padding(const std::vector<int64_t> &output_padding);
+  std::vector<int64_t> get_output_padding() const;
+  void set_groups(const int64_t &groups);
+  int64_t get_groups() const;
+  void set_output_mask(const std::vector<int64_t> &output_mask);
+  std::vector<int64_t> get_output_mask() const;
+};
+
+class MIND_API Convolution : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Convolution);
+  Convolution() : BaseOperator(kNameConvolution) {}
+  void set_stride(const std::vector<int64_t> &stride);
+  std::vector<int64_t> get_stride() const;
+  void set_padding(const std::vector<int64_t> &padding);
+  std::vector<int64_t> get_padding() const;
+  void set_dilation(const std::vector<int64_t> &dilation);
+  std::vector<int64_t> get_dilation() const;
+  void set_transposed(const bool &transposed);
+  bool get_transposed() const;
+  void set_output_padding(const std::vector<int64_t> &output_padding);
+  std::vector<int64_t> get_output_padding() const;
+  void set_groups(const int64_t &groups);
+  int64_t get_groups() const;
+};
+
+class MIND_API Copy : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Copy);
+  Copy() : BaseOperator(kNameCopy) {}
+};
+
+class MIND_API Correlate : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Correlate);
+  Correlate() : BaseOperator(kNameCorrelate) {}
+  void set_mode(const int64_t &mode);
+  int64_t get_mode() const;
+};
+
+class MIND_API Cos : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Cos);
+  Cos() : BaseOperator(kNameCos) {}
+};
+
+class MIND_API Cosh : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Cosh);
+  Cosh() : BaseOperator(kNameCosh) {}
+};
+
+class MIND_API CumProd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(CumProd);
+  CumProd() : BaseOperator(kNameCumProd) {}
+  void set_exclusive(const bool &exclusive);
+  bool get_exclusive() const;
+  void set_reverse(const bool &reverse);
+  bool get_reverse() const;
+};
+
+class MIND_API CumSum : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(CumSum);
+  CumSum() : BaseOperator(kNameCumSum) {}
+  void set_exclusive(const bool &exclusive);
+  bool get_exclusive() const;
+  void set_reverse(const bool &reverse);
+  bool get_reverse() const;
+};
+
+class MIND_API Cummax : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Cummax);
+  Cummax() : BaseOperator(kNameCummax) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API Cummin : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Cummin);
+  Cummin() : BaseOperator(kNameCummin) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API CumsumExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(CumsumExt);
+  CumsumExt() : BaseOperator(kNameCumsumExt) {}
+};
+
+class MIND_API DCT : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DCT);
+  DCT() : BaseOperator(kNameDCT) {}
+};
+
+class MIND_API DecoderKVCache : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DecoderKVCache);
+  DecoderKVCache() : BaseOperator(kNameDecoderKVCache) {}
+};
+
+class MIND_API Dense : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Dense);
+  Dense() : BaseOperator(kNameDense) {}
+};
+
+class MIND_API Diag : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Diag);
+  Diag() : BaseOperator(kNameDiag) {}
+};
+
+class MIND_API Diagonal : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Diagonal);
+  Diagonal() : BaseOperator(kNameDiagonal) {}
+  void set_offset(const int64_t &offset);
+  int64_t get_offset() const;
+  void set_dim1(const int64_t &dim1);
+  int64_t get_dim1() const;
+  void set_dim2(const int64_t &dim2);
+  int64_t get_dim2() const;
+};
+
+class MIND_API Div : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Div);
+  Div() : BaseOperator(kNameDiv) {}
+};
+
+class MIND_API DivMod : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DivMod);
+  DivMod() : BaseOperator(kNameDivMod) {}
+};
+
+class MIND_API Dot : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Dot);
+  Dot() : BaseOperator(kNameDot) {}
+};
+
+class MIND_API DropoutDoMaskExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DropoutDoMaskExt);
+  DropoutDoMaskExt() : BaseOperator(kNameDropoutDoMaskExt) {}
+};
+
+class MIND_API DropoutExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DropoutExt);
+  DropoutExt() : BaseOperator(kNameDropoutExt) {}
+};
+
+class MIND_API DropoutGenMaskExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DropoutGenMaskExt);
+  DropoutGenMaskExt() : BaseOperator(kNameDropoutGenMaskExt) {}
+};
+
+class MIND_API DropoutGradExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DropoutGradExt);
+  DropoutGradExt() : BaseOperator(kNameDropoutGradExt) {}
+};
+
+class MIND_API Dropout : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Dropout);
+  Dropout() : BaseOperator(kNameDropout) {}
+  void set_keep_prob(const float &keep_prob);
+  float get_keep_prob() const;
+  void set_Seed0(const int64_t &Seed0);
+  int64_t get_Seed0() const;
+  void set_Seed1(const int64_t &Seed1);
+  int64_t get_Seed1() const;
+};
+
+class MIND_API Eig : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Eig);
+  Eig() : BaseOperator(kNameEig) {}
+  void set_compute_v(const bool &compute_v);
+  bool get_compute_v() const;
+};
+
+class MIND_API EluExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(EluExt);
+  EluExt() : BaseOperator(kNameEluExt) {}
+  void set_alpha(const float &alpha);
+  float get_alpha() const;
+};
+
+class MIND_API EluGradExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(EluGradExt);
+  EluGradExt() : BaseOperator(kNameEluGradExt) {}
+};
+
+class MIND_API EluGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(EluGrad);
+  EluGrad() : BaseOperator(kNameEluGrad) {}
+};
+
+class MIND_API Elu : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Elu);
+  Elu() : BaseOperator(kNameElu) {}
+  void set_alpha(const float &alpha);
+  float get_alpha() const;
+};
+
+class MIND_API EmbeddingDenseBackward : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(EmbeddingDenseBackward);
+  EmbeddingDenseBackward() : BaseOperator(kNameEmbeddingDenseBackward) {}
+};
+
+class MIND_API Embedding : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Embedding);
+  Embedding() : BaseOperator(kNameEmbedding) {}
+};
+
+class MIND_API Equal : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Equal);
+  Equal() : BaseOperator(kNameEqual) {}
+};
+
+class MIND_API Erf : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Erf);
+  Erf() : BaseOperator(kNameErf) {}
+};
+
+class MIND_API Erfc : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Erfc);
+  Erfc() : BaseOperator(kNameErfc) {}
+};
+
+class MIND_API Erfinv : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Erfinv);
+  Erfinv() : BaseOperator(kNameErfinv) {}
+};
+
+class MIND_API Exp : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Exp);
+  Exp() : BaseOperator(kNameExp) {}
+};
+
+class MIND_API ExpandDims : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ExpandDims);
+  ExpandDims() : BaseOperator(kNameExpandDims) {}
+};
+
+class MIND_API Expm1 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Expm1);
+  Expm1() : BaseOperator(kNameExpm1) {}
+};
+
+class MIND_API ExtractImagePatches : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ExtractImagePatches);
+  ExtractImagePatches() : BaseOperator(kNameExtractImagePatches) {}
+  void set_ksizes(const std::vector<int64_t> &ksizes);
+  std::vector<int64_t> get_ksizes() const;
+  void set_strides(const std::vector<int64_t> &strides);
+  std::vector<int64_t> get_strides() const;
+  void set_rates(const std::vector<int64_t> &rates);
+  std::vector<int64_t> get_rates() const;
+  void set_padding(const int64_t &padding);
+  int64_t get_padding() const;
+};
+
+class MIND_API Eye : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Eye);
+  Eye() : BaseOperator(kNameEye) {}
+};
+
+class MIND_API FastGeLUGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FastGeLUGrad);
+  FastGeLUGrad() : BaseOperator(kNameFastGeLUGrad) {}
+};
+
+class MIND_API FastGeLU : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FastGeLU);
+  FastGeLU() : BaseOperator(kNameFastGeLU) {}
+};
+
+class MIND_API FFNExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FFNExt);
+  FFNExt() : BaseOperator(kNameFFNExt) {}
+  void set_activation(const int64_t &activation);
+  int64_t get_activation() const;
+  void set_inner_precise(const int64_t &inner_precise);
+  int64_t get_inner_precise() const;
+};
+
+class MIND_API FFT2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FFT2);
+  FFT2() : BaseOperator(kNameFFT2) {}
+};
+
+class MIND_API FFT : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FFT);
+  FFT() : BaseOperator(kNameFFT) {}
+};
+
+class MIND_API FFTShapeCopy : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FFTShapeCopy);
+  FFTShapeCopy() : BaseOperator(kNameFFTShapeCopy) {}
+};
+
+class MIND_API FFTWithSize : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FFTWithSize);
+  FFTWithSize() : BaseOperator(kNameFFTWithSize) {}
+  void set_signal_ndim(const int64_t &signal_ndim);
+  int64_t get_signal_ndim() const;
+  void set_inverse(const bool &inverse);
+  bool get_inverse() const;
+  void set_real(const bool &real);
+  bool get_real() const;
+  void set_norm(const int64_t &norm);
+  int64_t get_norm() const;
+  void set_onesided(const bool &onesided);
+  bool get_onesided() const;
+  void set_signal_sizes(const std::vector<int64_t> &signal_sizes);
+  std::vector<int64_t> get_signal_sizes() const;
+};
+
+class MIND_API FFTN : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FFTN);
+  FFTN() : BaseOperator(kNameFFTN) {}
+};
+
+class MIND_API FFTShift : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FFTShift);
+  FFTShift() : BaseOperator(kNameFFTShift) {}
+};
+
+class MIND_API FillScalar : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FillScalar);
+  FillScalar() : BaseOperator(kNameFillScalar) {}
+};
+
+class MIND_API FillTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FillTensor);
+  FillTensor() : BaseOperator(kNameFillTensor) {}
+};
+
+class MIND_API FlashAttentionScoreGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FlashAttentionScoreGrad);
+  FlashAttentionScoreGrad() : BaseOperator(kNameFlashAttentionScoreGrad) {}
+  void set_head_num(const int64_t &head_num);
+  int64_t get_head_num() const;
+  void set_keep_prob(const float &keep_prob);
+  float get_keep_prob() const;
+  void set_scale_value(const float &scale_value);
+  float get_scale_value() const;
+  void set_pre_tokens(const int64_t &pre_tokens);
+  int64_t get_pre_tokens() const;
+  void set_next_tokens(const int64_t &next_tokens);
+  int64_t get_next_tokens() const;
+  void set_inner_precise(const int64_t &inner_precise);
+  int64_t get_inner_precise() const;
+  void set_input_layout(const int64_t &input_layout);
+  int64_t get_input_layout() const;
+  void set_sparse_mode(const int64_t &sparse_mode);
+  int64_t get_sparse_mode() const;
+};
+
+class MIND_API FlashAttentionScore : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FlashAttentionScore);
+  FlashAttentionScore() : BaseOperator(kNameFlashAttentionScore) {}
+  void set_head_num(const int64_t &head_num);
+  int64_t get_head_num() const;
+  void set_keep_prob(const float &keep_prob);
+  float get_keep_prob() const;
+  void set_scale_value(const float &scale_value);
+  float get_scale_value() const;
+  void set_pre_tokens(const int64_t &pre_tokens);
+  int64_t get_pre_tokens() const;
+  void set_next_tokens(const int64_t &next_tokens);
+  int64_t get_next_tokens() const;
+  void set_inner_precise(const int64_t &inner_precise);
+  int64_t get_inner_precise() const;
+  void set_input_layout(const int64_t &input_layout);
+  int64_t get_input_layout() const;
+  void set_sparse_mode(const int64_t &sparse_mode);
+  int64_t get_sparse_mode() const;
+};
+
+class MIND_API FlattenExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FlattenExt);
+  FlattenExt() : BaseOperator(kNameFlattenExt) {}
+};
+
+class MIND_API Flatten : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Flatten);
+  Flatten() : BaseOperator(kNameFlatten) {}
+};
+
+class MIND_API FloorDiv : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FloorDiv);
+  FloorDiv() : BaseOperator(kNameFloorDiv) {}
+};
+
+class MIND_API FloorMod : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FloorMod);
+  FloorMod() : BaseOperator(kNameFloorMod) {}
+};
+
+class MIND_API Floor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Floor);
+  Floor() : BaseOperator(kNameFloor) {}
+};
+
+class MIND_API GatherDGradV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GatherDGradV2);
+  GatherDGradV2() : BaseOperator(kNameGatherDGradV2) {}
+};
+
+class MIND_API GatherD : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GatherD);
+  GatherD() : BaseOperator(kNameGatherD) {}
+};
+
+class MIND_API GatherNd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GatherNd);
+  GatherNd() : BaseOperator(kNameGatherNd) {}
+};
+
+class MIND_API Gather : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Gather);
+  Gather() : BaseOperator(kNameGather) {}
+  void set_batch_dims(const int64_t &batch_dims);
+  int64_t get_batch_dims() const;
+};
+
+class MIND_API Gcd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Gcd);
+  Gcd() : BaseOperator(kNameGcd) {}
+};
+
+class MIND_API GeLUGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GeLUGrad);
+  GeLUGrad() : BaseOperator(kNameGeLUGrad) {}
+};
+
+class MIND_API GeLU : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GeLU);
+  GeLU() : BaseOperator(kNameGeLU) {}
+};
+
+class MIND_API Generator : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Generator);
+  Generator() : BaseOperator(kNameGenerator) {}
+};
+
+class MIND_API Geqrf : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Geqrf);
+  Geqrf() : BaseOperator(kNameGeqrf) {}
+};
+
+class MIND_API GreaterEqual : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GreaterEqual);
+  GreaterEqual() : BaseOperator(kNameGreaterEqual) {}
+};
+
+class MIND_API Greater : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Greater);
+  Greater() : BaseOperator(kNameGreater) {}
+};
+
+class MIND_API GridSampler2DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GridSampler2DGrad);
+  GridSampler2DGrad() : BaseOperator(kNameGridSampler2DGrad) {}
+  void set_interpolation_mode(const int64_t &interpolation_mode);
+  int64_t get_interpolation_mode() const;
+  void set_padding_mode(const int64_t &padding_mode);
+  int64_t get_padding_mode() const;
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+};
+
+class MIND_API GridSampler2D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GridSampler2D);
+  GridSampler2D() : BaseOperator(kNameGridSampler2D) {}
+  void set_interpolation_mode(const int64_t &interpolation_mode);
+  int64_t get_interpolation_mode() const;
+  void set_padding_mode(const int64_t &padding_mode);
+  int64_t get_padding_mode() const;
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+};
+
+class MIND_API GridSampler3DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GridSampler3DGrad);
+  GridSampler3DGrad() : BaseOperator(kNameGridSampler3DGrad) {}
+  void set_interpolation_mode(const int64_t &interpolation_mode);
+  int64_t get_interpolation_mode() const;
+  void set_padding_mode(const int64_t &padding_mode);
+  int64_t get_padding_mode() const;
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+};
+
+class MIND_API GridSampler3D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GridSampler3D);
+  GridSampler3D() : BaseOperator(kNameGridSampler3D) {}
+  void set_interpolation_mode(const int64_t &interpolation_mode);
+  int64_t get_interpolation_mode() const;
+  void set_padding_mode(const int64_t &padding_mode);
+  int64_t get_padding_mode() const;
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+};
+
+class MIND_API GroupNormGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GroupNormGrad);
+  GroupNormGrad() : BaseOperator(kNameGroupNormGrad) {}
+};
+
+class MIND_API GroupNorm : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GroupNorm);
+  GroupNorm() : BaseOperator(kNameGroupNorm) {}
+};
+
+class MIND_API HShrinkGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(HShrinkGrad);
+  HShrinkGrad() : BaseOperator(kNameHShrinkGrad) {}
+  void set_lambd(const float &lambd);
+  float get_lambd() const;
+};
+
+class MIND_API HShrink : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(HShrink);
+  HShrink() : BaseOperator(kNameHShrink) {}
+  void set_lambd(const float &lambd);
+  float get_lambd() const;
+};
+
+class MIND_API HSigmoidGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(HSigmoidGrad);
+  HSigmoidGrad() : BaseOperator(kNameHSigmoidGrad) {}
+};
+
+class MIND_API HSigmoid : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(HSigmoid);
+  HSigmoid() : BaseOperator(kNameHSigmoid) {}
+};
+
+class MIND_API HSwishGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(HSwishGrad);
+  HSwishGrad() : BaseOperator(kNameHSwishGrad) {}
+};
+
+class MIND_API HSwish : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(HSwish);
+  HSwish() : BaseOperator(kNameHSwish) {}
+};
+
+class MIND_API Identity : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Identity);
+  Identity() : BaseOperator(kNameIdentity) {}
+};
+
+class MIND_API IFFT2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IFFT2);
+  IFFT2() : BaseOperator(kNameIFFT2) {}
+};
+
+class MIND_API IFFT : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IFFT);
+  IFFT() : BaseOperator(kNameIFFT) {}
+};
+
+class MIND_API IFFTN : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IFFTN);
+  IFFTN() : BaseOperator(kNameIFFTN) {}
+};
+
+class MIND_API IFFTShift : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IFFTShift);
+  IFFTShift() : BaseOperator(kNameIFFTShift) {}
+};
+
+class MIND_API Im2ColExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Im2ColExt);
+  Im2ColExt() : BaseOperator(kNameIm2ColExt) {}
+};
+
+class MIND_API IndexAddExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IndexAddExt);
+  IndexAddExt() : BaseOperator(kNameIndexAddExt) {}
+};
+
+class MIND_API IndexSelect : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IndexSelect);
+  IndexSelect() : BaseOperator(kNameIndexSelect) {}
+};
+
+class MIND_API IRFFTGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IRFFTGrad);
+  IRFFTGrad() : BaseOperator(kNameIRFFTGrad) {}
+};
+
+class MIND_API IRFFT : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IRFFT);
+  IRFFT() : BaseOperator(kNameIRFFT) {}
+};
+
+class MIND_API IsClose : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IsClose);
+  IsClose() : BaseOperator(kNameIsClose) {}
+  void set_rtol(const float &rtol);
+  float get_rtol() const;
+  void set_atol(const float &atol);
+  float get_atol() const;
+  void set_equal_nan(const bool &equal_nan);
+  bool get_equal_nan() const;
+};
+
+class MIND_API IsFinite : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(IsFinite);
+  IsFinite() : BaseOperator(kNameIsFinite) {}
+};
+
+class MIND_API LayerNormExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LayerNormExt);
+  LayerNormExt() : BaseOperator(kNameLayerNormExt) {}
+};
+
+class MIND_API LayerNormGradExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LayerNormGradExt);
+  LayerNormGradExt() : BaseOperator(kNameLayerNormGradExt) {}
+};
+
+class MIND_API LayerNormGradGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LayerNormGradGrad);
+  LayerNormGradGrad() : BaseOperator(kNameLayerNormGradGrad) {}
+  void set_begin_norm_axis(const int64_t &begin_norm_axis);
+  int64_t get_begin_norm_axis() const;
+  void set_begin_params_axis(const int64_t &begin_params_axis);
+  int64_t get_begin_params_axis() const;
+};
+
+class MIND_API LayerNormGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LayerNormGrad);
+  LayerNormGrad() : BaseOperator(kNameLayerNormGrad) {}
+  void set_begin_norm_axis(const int64_t &begin_norm_axis);
+  int64_t get_begin_norm_axis() const;
+  void set_begin_params_axis(const int64_t &begin_params_axis);
+  int64_t get_begin_params_axis() const;
+};
+
+class MIND_API LayerNormGradV3 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LayerNormGradV3);
+  LayerNormGradV3() : BaseOperator(kNameLayerNormGradV3) {}
+  void set_begin_norm_axis(const int64_t &begin_norm_axis);
+  int64_t get_begin_norm_axis() const;
+  void set_begin_params_axis(const int64_t &begin_params_axis);
+  int64_t get_begin_params_axis() const;
+};
+
+class MIND_API LayerNorm : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LayerNorm);
+  LayerNorm() : BaseOperator(kNameLayerNorm) {}
+  void set_begin_norm_axis(const int64_t &begin_norm_axis);
+  int64_t get_begin_norm_axis() const;
+  void set_begin_params_axis(const int64_t &begin_params_axis);
+  int64_t get_begin_params_axis() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+};
+
+class MIND_API LayerNormV3 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LayerNormV3);
+  LayerNormV3() : BaseOperator(kNameLayerNormV3) {}
+  void set_begin_norm_axis(const int64_t &begin_norm_axis);
+  int64_t get_begin_norm_axis() const;
+  void set_begin_params_axis(const int64_t &begin_params_axis);
+  int64_t get_begin_params_axis() const;
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+};
+
+class MIND_API LeakyReLUExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LeakyReLUExt);
+  LeakyReLUExt() : BaseOperator(kNameLeakyReLUExt) {}
+};
+
+class MIND_API LeakyReLUGradExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LeakyReLUGradExt);
+  LeakyReLUGradExt() : BaseOperator(kNameLeakyReLUGradExt) {}
+};
+
+class MIND_API LessEqual : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LessEqual);
+  LessEqual() : BaseOperator(kNameLessEqual) {}
+};
+
+class MIND_API Less : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Less);
+  Less() : BaseOperator(kNameLess) {}
+};
+
+class MIND_API LinSpaceExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LinSpaceExt);
+  LinSpaceExt() : BaseOperator(kNameLinSpaceExt) {}
+};
+
+class MIND_API LinSpace : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LinSpace);
+  LinSpace() : BaseOperator(kNameLinSpace) {}
+};
+
+class MIND_API ListToTuple : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ListToTuple);
+  ListToTuple() : BaseOperator(kNameListToTuple) {}
+};
+
+class MIND_API Log1p : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Log1p);
+  Log1p() : BaseOperator(kNameLog1p) {}
+};
+
+class MIND_API LogMatrixDeterminant : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogMatrixDeterminant);
+  LogMatrixDeterminant() : BaseOperator(kNameLogMatrixDeterminant) {}
+};
+
+class MIND_API Log : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Log);
+  Log() : BaseOperator(kNameLog) {}
+};
+
+class MIND_API LogSoftmaxGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogSoftmaxGrad);
+  LogSoftmaxGrad() : BaseOperator(kNameLogSoftmaxGrad) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API LogSoftmax : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogSoftmax);
+  LogSoftmax() : BaseOperator(kNameLogSoftmax) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API LogicalAnd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogicalAnd);
+  LogicalAnd() : BaseOperator(kNameLogicalAnd) {}
+};
+
+class MIND_API LogicalNot : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogicalNot);
+  LogicalNot() : BaseOperator(kNameLogicalNot) {}
+};
+
+class MIND_API LogicalOr : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogicalOr);
+  LogicalOr() : BaseOperator(kNameLogicalOr) {}
+};
+
+class MIND_API LogicalXor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogicalXor);
+  LogicalXor() : BaseOperator(kNameLogicalXor) {}
+};
+
+class MIND_API LogitGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(LogitGrad);
+  LogitGrad() : BaseOperator(kNameLogitGrad) {}
+  void set_eps(const float &eps);
+  float get_eps() const;
+};
+
+class MIND_API Logit : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Logit);
+  Logit() : BaseOperator(kNameLogit) {}
+  void set_eps(const float &eps);
+  float get_eps() const;
+};
+
+class MIND_API MaskedFill : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MaskedFill);
+  MaskedFill() : BaseOperator(kNameMaskedFill) {}
+};
+
+class MIND_API MatMulExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatMulExt);
+  MatMulExt() : BaseOperator(kNameMatMulExt) {}
+};
+
+class MIND_API MatMul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatMul);
+  MatMul() : BaseOperator(kNameMatMul) {}
+  void set_transpose_a(const bool &transpose_a);
+  bool get_transpose_a() const;
+  void set_transpose_b(const bool &transpose_b);
+  bool get_transpose_b() const;
+};
+
+class MIND_API MatrixDeterminant : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatrixDeterminant);
+  MatrixDeterminant() : BaseOperator(kNameMatrixDeterminant) {}
+};
+
+class MIND_API MatrixExp : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatrixExp);
+  MatrixExp() : BaseOperator(kNameMatrixExp) {}
+};
+
+class MIND_API MatrixInverseExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatrixInverseExt);
+  MatrixInverseExt() : BaseOperator(kNameMatrixInverseExt) {}
+};
+
+class MIND_API Max : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Max);
+  Max() : BaseOperator(kNameMax) {}
+};
+
+class MIND_API MaxPoolGradWithIndices : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MaxPoolGradWithIndices);
+  MaxPoolGradWithIndices() : BaseOperator(kNameMaxPoolGradWithIndices) {}
+  void set_kernel_size(const std::vector<int64_t> &kernel_size);
+  std::vector<int64_t> get_kernel_size() const;
+  void set_strides(const std::vector<int64_t> &strides);
+  std::vector<int64_t> get_strides() const;
+  void set_pads(const std::vector<int64_t> &pads);
+  std::vector<int64_t> get_pads() const;
+  void set_dilation(const std::vector<int64_t> &dilation);
+  std::vector<int64_t> get_dilation() const;
+  void set_ceil_mode(const bool &ceil_mode);
+  bool get_ceil_mode() const;
+  void set_argmax_type(const int64_t &argmax_type);
+  int64_t get_argmax_type() const;
+};
+
+class MIND_API MaxPoolGradWithMask : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MaxPoolGradWithMask);
+  MaxPoolGradWithMask() : BaseOperator(kNameMaxPoolGradWithMask) {}
+  void set_kernel_size(const std::vector<int64_t> &kernel_size);
+  std::vector<int64_t> get_kernel_size() const;
+  void set_strides(const std::vector<int64_t> &strides);
+  std::vector<int64_t> get_strides() const;
+  void set_pads(const std::vector<int64_t> &pads);
+  std::vector<int64_t> get_pads() const;
+  void set_dilation(const std::vector<int64_t> &dilation);
+  std::vector<int64_t> get_dilation() const;
+  void set_ceil_mode(const bool &ceil_mode);
+  bool get_ceil_mode() const;
+  void set_argmax_type(const int64_t &argmax_type);
+  int64_t get_argmax_type() const;
+};
+
+class MIND_API MaxPoolWithIndices : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MaxPoolWithIndices);
+  MaxPoolWithIndices() : BaseOperator(kNameMaxPoolWithIndices) {}
+  void set_kernel_size(const std::vector<int64_t> &kernel_size);
+  std::vector<int64_t> get_kernel_size() const;
+  void set_strides(const std::vector<int64_t> &strides);
+  std::vector<int64_t> get_strides() const;
+  void set_pads(const std::vector<int64_t> &pads);
+  std::vector<int64_t> get_pads() const;
+  void set_dilation(const std::vector<int64_t> &dilation);
+  std::vector<int64_t> get_dilation() const;
+  void set_ceil_mode(const bool &ceil_mode);
+  bool get_ceil_mode() const;
+  void set_argmax_type(const int64_t &argmax_type);
+  int64_t get_argmax_type() const;
+};
+
+class MIND_API MaxPoolWithMask : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MaxPoolWithMask);
+  MaxPoolWithMask() : BaseOperator(kNameMaxPoolWithMask) {}
+  void set_kernel_size(const std::vector<int64_t> &kernel_size);
+  std::vector<int64_t> get_kernel_size() const;
+  void set_strides(const std::vector<int64_t> &strides);
+  std::vector<int64_t> get_strides() const;
+  void set_pads(const std::vector<int64_t> &pads);
+  std::vector<int64_t> get_pads() const;
+  void set_dilation(const std::vector<int64_t> &dilation);
+  std::vector<int64_t> get_dilation() const;
+  void set_ceil_mode(const bool &ceil_mode);
+  bool get_ceil_mode() const;
+  void set_argmax_type(const int64_t &argmax_type);
+  int64_t get_argmax_type() const;
+};
+
+class MIND_API MaximumGradGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MaximumGradGrad);
+  MaximumGradGrad() : BaseOperator(kNameMaximumGradGrad) {}
+  void set_grad_x(const bool &grad_x);
+  bool get_grad_x() const;
+  void set_grad_y(const bool &grad_y);
+  bool get_grad_y() const;
+};
+
+class MIND_API MaximumGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MaximumGrad);
+  MaximumGrad() : BaseOperator(kNameMaximumGrad) {}
+  void set_grad_x(const bool &grad_x);
+  bool get_grad_x() const;
+  void set_grad_y(const bool &grad_y);
+  bool get_grad_y() const;
+};
+
+class MIND_API Maximum : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Maximum);
+  Maximum() : BaseOperator(kNameMaximum) {}
+};
+
+class MIND_API MeanExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MeanExt);
+  MeanExt() : BaseOperator(kNameMeanExt) {}
+};
+
+class MIND_API Min : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Min);
+  Min() : BaseOperator(kNameMin) {}
+};
+
+class MIND_API MinimumGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MinimumGrad);
+  MinimumGrad() : BaseOperator(kNameMinimumGrad) {}
+  void set_grad_x(const bool &grad_x);
+  bool get_grad_x() const;
+  void set_grad_y(const bool &grad_y);
+  bool get_grad_y() const;
+};
+
+class MIND_API Minimum : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Minimum);
+  Minimum() : BaseOperator(kNameMinimum) {}
+};
+
+class MIND_API Mul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Mul);
+  Mul() : BaseOperator(kNameMul) {}
+};
+
+class MIND_API Mv : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Mv);
+  Mv() : BaseOperator(kNameMv) {}
+};
+
+class MIND_API NanToNum : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NanToNum);
+  NanToNum() : BaseOperator(kNameNanToNum) {}
+  void set_nan(const float &nan);
+  float get_nan() const;
+  void set_posinf(const float &posinf);
+  float get_posinf() const;
+  void set_neginf(const float &neginf);
+  float get_neginf() const;
+};
+
+class MIND_API Neg : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Neg);
+  Neg() : BaseOperator(kNameNeg) {}
+};
+
+class MIND_API NextAfter : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NextAfter);
+  NextAfter() : BaseOperator(kNameNextAfter) {}
+};
+
+class MIND_API NLLLossGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NLLLossGrad);
+  NLLLossGrad() : BaseOperator(kNameNLLLossGrad) {}
+  void set_reduction(const int64_t &reduction);
+  int64_t get_reduction() const;
+  void set_ignore_index(const int64_t &ignore_index);
+  int64_t get_ignore_index() const;
+};
+
+class MIND_API NLLLoss : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NLLLoss);
+  NLLLoss() : BaseOperator(kNameNLLLoss) {}
+  void set_reduction(const int64_t &reduction);
+  int64_t get_reduction() const;
+  void set_ignore_index(const int64_t &ignore_index);
+  int64_t get_ignore_index() const;
+};
+
+class MIND_API NonZeroExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NonZeroExt);
+  NonZeroExt() : BaseOperator(kNameNonZeroExt) {}
+};
+
+class MIND_API NonZero : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NonZero);
+  NonZero() : BaseOperator(kNameNonZero) {}
+};
+
+class MIND_API Norm : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Norm);
+  Norm() : BaseOperator(kNameNorm) {}
+};
+
+class MIND_API NormalFloatFloat : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NormalFloatFloat);
+  NormalFloatFloat() : BaseOperator(kNameNormalFloatFloat) {}
+};
+
+class MIND_API NormalFloatTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NormalFloatTensor);
+  NormalFloatTensor() : BaseOperator(kNameNormalFloatTensor) {}
+};
+
+class MIND_API NormalTensorFloat : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NormalTensorFloat);
+  NormalTensorFloat() : BaseOperator(kNameNormalTensorFloat) {}
+};
+
+class MIND_API NormalTensorTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NormalTensorTensor);
+  NormalTensorTensor() : BaseOperator(kNameNormalTensorTensor) {}
+};
+
+class MIND_API NotEqual : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NotEqual);
+  NotEqual() : BaseOperator(kNameNotEqual) {}
+};
+
+class MIND_API NPUClearFloatStatusV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NPUClearFloatStatusV2);
+  NPUClearFloatStatusV2() : BaseOperator(kNameNPUClearFloatStatusV2) {}
+};
+
+class MIND_API NPUGetFloatStatusV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(NPUGetFloatStatusV2);
+  NPUGetFloatStatusV2() : BaseOperator(kNameNPUGetFloatStatusV2) {}
+};
+
+class MIND_API OneHotExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(OneHotExt);
+  OneHotExt() : BaseOperator(kNameOneHotExt) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API OneHot : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(OneHot);
+  OneHot() : BaseOperator(kNameOneHot) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API OnesLikeExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(OnesLikeExt);
+  OnesLikeExt() : BaseOperator(kNameOnesLikeExt) {}
+};
+
+class MIND_API OnesLike : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(OnesLike);
+  OnesLike() : BaseOperator(kNameOnesLike) {}
+};
+
+class MIND_API Ones : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Ones);
+  Ones() : BaseOperator(kNameOnes) {}
+};
+
+class MIND_API PagedAttentionMask : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(PagedAttentionMask);
+  PagedAttentionMask() : BaseOperator(kNamePagedAttentionMask) {}
+  void set_head_num(const int64_t &head_num);
+  int64_t get_head_num() const;
+  void set_scale_value(const float &scale_value);
+  float get_scale_value() const;
+  void set_kv_head_num(const int64_t &kv_head_num);
+  int64_t get_kv_head_num() const;
+};
+
+class MIND_API PagedAttention : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(PagedAttention);
+  PagedAttention() : BaseOperator(kNamePagedAttention) {}
+  void set_head_num(const int64_t &head_num);
+  int64_t get_head_num() const;
+  void set_scale_value(const float &scale_value);
+  float get_scale_value() const;
+  void set_kv_head_num(const int64_t &kv_head_num);
+  int64_t get_kv_head_num() const;
+};
+
+class MIND_API Pow : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Pow);
+  Pow() : BaseOperator(kNamePow) {}
+};
+
+class MIND_API PReLUGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(PReLUGrad);
+  PReLUGrad() : BaseOperator(kNamePReLUGrad) {}
+};
+
+class MIND_API PReLU : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(PReLU);
+  PReLU() : BaseOperator(kNamePReLU) {}
+};
+
+class MIND_API ProdExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ProdExt);
+  ProdExt() : BaseOperator(kNameProdExt) {}
+};
+
+class MIND_API PromptKVCache : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(PromptKVCache);
+  PromptKVCache() : BaseOperator(kNamePromptKVCache) {}
+  void set_align_mode(const int64_t &align_mode);
+  int64_t get_align_mode() const;
+};
+
+class MIND_API Qr : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Qr);
+  Qr() : BaseOperator(kNameQr) {}
+  void set_full_matrices(const bool &full_matrices);
+  bool get_full_matrices() const;
+};
+
+class MIND_API RandExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RandExt);
+  RandExt() : BaseOperator(kNameRandExt) {}
+};
+
+class MIND_API RandLikeExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RandLikeExt);
+  RandLikeExt() : BaseOperator(kNameRandLikeExt) {}
+};
+
+class MIND_API RandpermV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RandpermV2);
+  RandpermV2() : BaseOperator(kNameRandpermV2) {}
+  void set_seed(const int64_t &seed);
+  int64_t get_seed() const;
+  void set_offset(const int64_t &offset);
+  int64_t get_offset() const;
+  void set_dtype(const int64_t &dtype);
+  int64_t get_dtype() const;
+};
+
+class MIND_API Range : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Range);
+  Range() : BaseOperator(kNameRange) {}
+  void set_maxlen(const int64_t &maxlen);
+  int64_t get_maxlen() const;
+};
+
+class MIND_API Rank : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Rank);
+  Rank() : BaseOperator(kNameRank) {}
+};
+
+class MIND_API RealDiv : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RealDiv);
+  RealDiv() : BaseOperator(kNameRealDiv) {}
+};
+
+class MIND_API Real : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Real);
+  Real() : BaseOperator(kNameReal) {}
+};
+
+class MIND_API ReciprocalGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReciprocalGrad);
+  ReciprocalGrad() : BaseOperator(kNameReciprocalGrad) {}
+};
+
+class MIND_API Reciprocal : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Reciprocal);
+  Reciprocal() : BaseOperator(kNameReciprocal) {}
+};
+
+class MIND_API ReduceAll : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceAll);
+  ReduceAll() : BaseOperator(kNameReduceAll) {}
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API ReduceAny : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceAny);
+  ReduceAny() : BaseOperator(kNameReduceAny) {}
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API ReduceMax : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceMax);
+  ReduceMax() : BaseOperator(kNameReduceMax) {}
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API ReduceMean : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceMean);
+  ReduceMean() : BaseOperator(kNameReduceMean) {}
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API ReduceMin : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceMin);
+  ReduceMin() : BaseOperator(kNameReduceMin) {}
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API ReduceProd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceProd);
+  ReduceProd() : BaseOperator(kNameReduceProd) {}
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API ReduceStd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceStd);
+  ReduceStd() : BaseOperator(kNameReduceStd) {}
+  void set_axis(const std::vector<int64_t> &axis);
+  std::vector<int64_t> get_axis() const;
+  void set_unbiased(const bool &unbiased);
+  bool get_unbiased() const;
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+};
+
+class MIND_API ReduceSum : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReduceSum);
+  ReduceSum() : BaseOperator(kNameReduceSum) {}
+  void set_keep_dims(const bool &keep_dims);
+  bool get_keep_dims() const;
+  void set_skip_mode(const bool &skip_mode);
+  bool get_skip_mode() const;
+};
+
+class MIND_API ReflectionPad1DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReflectionPad1DGrad);
+  ReflectionPad1DGrad() : BaseOperator(kNameReflectionPad1DGrad) {}
+};
+
+class MIND_API ReflectionPad1D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReflectionPad1D);
+  ReflectionPad1D() : BaseOperator(kNameReflectionPad1D) {}
+};
+
+class MIND_API ReflectionPad2DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReflectionPad2DGrad);
+  ReflectionPad2DGrad() : BaseOperator(kNameReflectionPad2DGrad) {}
+};
+
+class MIND_API ReflectionPad2D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReflectionPad2D);
+  ReflectionPad2D() : BaseOperator(kNameReflectionPad2D) {}
+};
+
+class MIND_API ReflectionPad3DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReflectionPad3DGrad);
+  ReflectionPad3DGrad() : BaseOperator(kNameReflectionPad3DGrad) {}
+};
+
+class MIND_API ReflectionPad3D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReflectionPad3D);
+  ReflectionPad3D() : BaseOperator(kNameReflectionPad3D) {}
+};
+
+class MIND_API ReLU6Grad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReLU6Grad);
+  ReLU6Grad() : BaseOperator(kNameReLU6Grad) {}
+};
+
+class MIND_API ReLU6 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReLU6);
+  ReLU6() : BaseOperator(kNameReLU6) {}
+};
+
+class MIND_API ReluGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReluGrad);
+  ReluGrad() : BaseOperator(kNameReluGrad) {}
+};
+
+class MIND_API ReLU : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReLU);
+  ReLU() : BaseOperator(kNameReLU) {}
+};
+
+class MIND_API RepeatInterleaveGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RepeatInterleaveGrad);
+  RepeatInterleaveGrad() : BaseOperator(kNameRepeatInterleaveGrad) {}
+};
+
+class MIND_API RepeatInterleaveInt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RepeatInterleaveInt);
+  RepeatInterleaveInt() : BaseOperator(kNameRepeatInterleaveInt) {}
+};
+
+class MIND_API RepeatInterleaveTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RepeatInterleaveTensor);
+  RepeatInterleaveTensor() : BaseOperator(kNameRepeatInterleaveTensor) {}
+};
+
+class MIND_API ReplicationPad1DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReplicationPad1DGrad);
+  ReplicationPad1DGrad() : BaseOperator(kNameReplicationPad1DGrad) {}
+};
+
+class MIND_API ReplicationPad1D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReplicationPad1D);
+  ReplicationPad1D() : BaseOperator(kNameReplicationPad1D) {}
+};
+
+class MIND_API ReplicationPad2DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReplicationPad2DGrad);
+  ReplicationPad2DGrad() : BaseOperator(kNameReplicationPad2DGrad) {}
+};
+
+class MIND_API ReplicationPad2D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReplicationPad2D);
+  ReplicationPad2D() : BaseOperator(kNameReplicationPad2D) {}
+};
+
+class MIND_API ReplicationPad3DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReplicationPad3DGrad);
+  ReplicationPad3DGrad() : BaseOperator(kNameReplicationPad3DGrad) {}
+};
+
+class MIND_API ReplicationPad3D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReplicationPad3D);
+  ReplicationPad3D() : BaseOperator(kNameReplicationPad3D) {}
+};
+
+class MIND_API ReshapeAndCache : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReshapeAndCache);
+  ReshapeAndCache() : BaseOperator(kNameReshapeAndCache) {}
+};
+
+class MIND_API Reshape : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Reshape);
+  Reshape() : BaseOperator(kNameReshape) {}
+};
+
+class MIND_API ResizeBicubicGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeBicubicGrad);
+  ResizeBicubicGrad() : BaseOperator(kNameResizeBicubicGrad) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ResizeBicubic : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeBicubic);
+  ResizeBicubic() : BaseOperator(kNameResizeBicubic) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ResizeBilinearGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeBilinearGrad);
+  ResizeBilinearGrad() : BaseOperator(kNameResizeBilinearGrad) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ResizeBilinearV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeBilinearV2);
+  ResizeBilinearV2() : BaseOperator(kNameResizeBilinearV2) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ResizeD : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeD);
+  ResizeD() : BaseOperator(kNameResizeD) {}
+};
+
+class MIND_API ResizeLinear1DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeLinear1DGrad);
+  ResizeLinear1DGrad() : BaseOperator(kNameResizeLinear1DGrad) {}
+  void set_coordinate_transformation_mode(const int64_t &coordinate_transformation_mode);
+  int64_t get_coordinate_transformation_mode() const;
+};
+
+class MIND_API ResizeLinear1D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeLinear1D);
+  ResizeLinear1D() : BaseOperator(kNameResizeLinear1D) {}
+  void set_coordinate_transformation_mode(const int64_t &coordinate_transformation_mode);
+  int64_t get_coordinate_transformation_mode() const;
+};
+
+class MIND_API ResizeNearestNeighborGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeNearestNeighborGrad);
+  ResizeNearestNeighborGrad() : BaseOperator(kNameResizeNearestNeighborGrad) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ResizeNearestNeighbor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeNearestNeighbor);
+  ResizeNearestNeighbor() : BaseOperator(kNameResizeNearestNeighbor) {}
+  void set_size(const std::vector<int64_t> &size);
+  std::vector<int64_t> get_size() const;
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ResizeNearestNeighborV2Grad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeNearestNeighborV2Grad);
+  ResizeNearestNeighborV2Grad() : BaseOperator(kNameResizeNearestNeighborV2Grad) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ResizeNearestNeighborV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ResizeNearestNeighborV2);
+  ResizeNearestNeighborV2() : BaseOperator(kNameResizeNearestNeighborV2) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+  void set_half_pixel_centers(const bool &half_pixel_centers);
+  bool get_half_pixel_centers() const;
+};
+
+class MIND_API ReverseV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ReverseV2);
+  ReverseV2() : BaseOperator(kNameReverseV2) {}
+  void set_axis(const std::vector<int64_t> &axis);
+  std::vector<int64_t> get_axis() const;
+};
+
+class MIND_API RFFTGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RFFTGrad);
+  RFFTGrad() : BaseOperator(kNameRFFTGrad) {}
+};
+
+class MIND_API RFFT : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RFFT);
+  RFFT() : BaseOperator(kNameRFFT) {}
+};
+
+class MIND_API RightShift : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RightShift);
+  RightShift() : BaseOperator(kNameRightShift) {}
+};
+
+class MIND_API RmsNormGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RmsNormGrad);
+  RmsNormGrad() : BaseOperator(kNameRmsNormGrad) {}
+};
+
+class MIND_API RmsNorm : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RmsNorm);
+  RmsNorm() : BaseOperator(kNameRmsNorm) {}
+  void set_epsilon(const float &epsilon);
+  float get_epsilon() const;
+};
+
+class MIND_API Roll : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Roll);
+  Roll() : BaseOperator(kNameRoll) {}
+  void set_shift(const std::vector<int64_t> &shift);
+  std::vector<int64_t> get_shift() const;
+  void set_axis(const std::vector<int64_t> &axis);
+  std::vector<int64_t> get_axis() const;
+};
+
+class MIND_API Round : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Round);
+  Round() : BaseOperator(kNameRound) {}
+};
+
+class MIND_API RsqrtGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(RsqrtGrad);
+  RsqrtGrad() : BaseOperator(kNameRsqrtGrad) {}
+};
+
+class MIND_API Rsqrt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Rsqrt);
+  Rsqrt() : BaseOperator(kNameRsqrt) {}
+};
+
+class MIND_API ScalarAdd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarAdd);
+  ScalarAdd() : BaseOperator(kNameScalarAdd) {}
+};
+
+class MIND_API ScalarBool : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarBool);
+  ScalarBool() : BaseOperator(kNameScalarBool) {}
+};
+
+class MIND_API ScalarCast : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarCast);
+  ScalarCast() : BaseOperator(kNameScalarCast) {}
+};
+
+class MIND_API ScalarDiv : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarDiv);
+  ScalarDiv() : BaseOperator(kNameScalarDiv) {}
+};
+
+class MIND_API ScalarEq : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarEq);
+  ScalarEq() : BaseOperator(kNameScalarEq) {}
+};
+
+class MIND_API ScalarFloorDiv : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarFloorDiv);
+  ScalarFloorDiv() : BaseOperator(kNameScalarFloorDiv) {}
+};
+
+class MIND_API ScalarGe : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarGe);
+  ScalarGe() : BaseOperator(kNameScalarGe) {}
+};
+
+class MIND_API ScalarGt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarGt);
+  ScalarGt() : BaseOperator(kNameScalarGt) {}
+};
+
+class MIND_API ScalarLe : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarLe);
+  ScalarLe() : BaseOperator(kNameScalarLe) {}
+};
+
+class MIND_API ScalarLog : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarLog);
+  ScalarLog() : BaseOperator(kNameScalarLog) {}
+};
+
+class MIND_API ScalarLt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarLt);
+  ScalarLt() : BaseOperator(kNameScalarLt) {}
+};
+
+class MIND_API ScalarMod : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarMod);
+  ScalarMod() : BaseOperator(kNameScalarMod) {}
+};
+
+class MIND_API ScalarMul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarMul);
+  ScalarMul() : BaseOperator(kNameScalarMul) {}
+};
+
+class MIND_API ScalarPow : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarPow);
+  ScalarPow() : BaseOperator(kNameScalarPow) {}
+};
+
+class MIND_API ScalarSub : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarSub);
+  ScalarSub() : BaseOperator(kNameScalarSub) {}
+};
+
+class MIND_API ScalarToTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarToTensor);
+  ScalarToTensor() : BaseOperator(kNameScalarToTensor) {}
+};
+
+class MIND_API ScalarUadd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarUadd);
+  ScalarUadd() : BaseOperator(kNameScalarUadd) {}
+};
+
+class MIND_API ScalarUsub : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScalarUsub);
+  ScalarUsub() : BaseOperator(kNameScalarUsub) {}
+};
+
+class MIND_API ScatterAddExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScatterAddExt);
+  ScatterAddExt() : BaseOperator(kNameScatterAddExt) {}
+};
+
+class MIND_API ScatterNd : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ScatterNd);
+  ScatterNd() : BaseOperator(kNameScatterNd) {}
+};
+
+class MIND_API Scatter : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Scatter);
+  Scatter() : BaseOperator(kNameScatter) {}
+};
+
+class MIND_API SearchSorted : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SearchSorted);
+  SearchSorted() : BaseOperator(kNameSearchSorted) {}
+  void set_dtype(const int64_t &dtype);
+  int64_t get_dtype() const;
+  void set_right(const bool &right);
+  bool get_right() const;
+};
+
+class MIND_API Select : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Select);
+  Select() : BaseOperator(kNameSelect) {}
+};
+
+class MIND_API SequenceConcat : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SequenceConcat);
+  SequenceConcat() : BaseOperator(kNameSequenceConcat) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API Shape : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Shape);
+  Shape() : BaseOperator(kNameShape) {}
+};
+
+class MIND_API SigmoidGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SigmoidGrad);
+  SigmoidGrad() : BaseOperator(kNameSigmoidGrad) {}
+};
+
+class MIND_API Sigmoid : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Sigmoid);
+  Sigmoid() : BaseOperator(kNameSigmoid) {}
+};
+
+class MIND_API Sign : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Sign);
+  Sign() : BaseOperator(kNameSign) {}
+};
+
+class MIND_API SiLUGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SiLUGrad);
+  SiLUGrad() : BaseOperator(kNameSiLUGrad) {}
+};
+
+class MIND_API SiLU : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SiLU);
+  SiLU() : BaseOperator(kNameSiLU) {}
+};
+
+class MIND_API Sin : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Sin);
+  Sin() : BaseOperator(kNameSin) {}
+};
+
+class MIND_API Sinc : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Sinc);
+  Sinc() : BaseOperator(kNameSinc) {}
+};
+
+class MIND_API Sinh : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Sinh);
+  Sinh() : BaseOperator(kNameSinh) {}
+};
+
+class MIND_API SliceExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SliceExt);
+  SliceExt() : BaseOperator(kNameSliceExt) {}
+};
+
+class MIND_API SoftmaxBackward : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SoftmaxBackward);
+  SoftmaxBackward() : BaseOperator(kNameSoftmaxBackward) {}
+};
+
+class MIND_API Softmax : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Softmax);
+  Softmax() : BaseOperator(kNameSoftmax) {}
+  void set_axis(const std::vector<int64_t> &axis);
+  std::vector<int64_t> get_axis() const;
+};
+
+class MIND_API SoftplusExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SoftplusExt);
+  SoftplusExt() : BaseOperator(kNameSoftplusExt) {}
+};
+
+class MIND_API SoftplusGradExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SoftplusGradExt);
+  SoftplusGradExt() : BaseOperator(kNameSoftplusGradExt) {}
+};
+
+class MIND_API SolveTriangular : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SolveTriangular);
+  SolveTriangular() : BaseOperator(kNameSolveTriangular) {}
+};
+
+class MIND_API SortExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SortExt);
+  SortExt() : BaseOperator(kNameSortExt) {}
+};
+
+class MIND_API Split : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Split);
+  Split() : BaseOperator(kNameSplit) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+  void set_output_num(const int64_t &output_num);
+  int64_t get_output_num() const;
+};
+
+class MIND_API SplitTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SplitTensor);
+  SplitTensor() : BaseOperator(kNameSplitTensor) {}
+};
+
+class MIND_API SplitWithSize : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SplitWithSize);
+  SplitWithSize() : BaseOperator(kNameSplitWithSize) {}
+};
+
+class MIND_API SqrtGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SqrtGrad);
+  SqrtGrad() : BaseOperator(kNameSqrtGrad) {}
+};
+
+class MIND_API Sqrt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Sqrt);
+  Sqrt() : BaseOperator(kNameSqrt) {}
+};
+
+class MIND_API Square : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Square);
+  Square() : BaseOperator(kNameSquare) {}
+};
+
+class MIND_API StackExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(StackExt);
+  StackExt() : BaseOperator(kNameStackExt) {}
+  void set_dim(const int64_t &dim);
+  int64_t get_dim() const;
+};
+
+class MIND_API StridedSlice : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(StridedSlice);
+  StridedSlice() : BaseOperator(kNameStridedSlice) {}
+  void set_begin_mask(const int64_t &begin_mask);
+  int64_t get_begin_mask() const;
+  void set_end_mask(const int64_t &end_mask);
+  int64_t get_end_mask() const;
+  void set_ellipsis_mask(const int64_t &ellipsis_mask);
+  int64_t get_ellipsis_mask() const;
+  void set_new_axis_mask(const int64_t &new_axis_mask);
+  int64_t get_new_axis_mask() const;
+  void set_shrink_axis_mask(const int64_t &shrink_axis_mask);
+  int64_t get_shrink_axis_mask() const;
+};
+
+class MIND_API SubExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SubExt);
+  SubExt() : BaseOperator(kNameSubExt) {}
+};
+
+class MIND_API Sub : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Sub);
+  Sub() : BaseOperator(kNameSub) {}
+};
+
+class MIND_API SumExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(SumExt);
+  SumExt() : BaseOperator(kNameSumExt) {}
+};
+
+class MIND_API TanhGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(TanhGrad);
+  TanhGrad() : BaseOperator(kNameTanhGrad) {}
+};
+
+class MIND_API Tanh : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Tanh);
+  Tanh() : BaseOperator(kNameTanh) {}
+};
+
+class MIND_API TensorCopySlices : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(TensorCopySlices);
+  TensorCopySlices() : BaseOperator(kNameTensorCopySlices) {}
+};
+
+class MIND_API TensorShape : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(TensorShape);
+  TensorShape() : BaseOperator(kNameTensorShape) {}
+};
+
+class MIND_API Tile : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Tile);
+  Tile() : BaseOperator(kNameTile) {}
+};
+
+class MIND_API TopkExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(TopkExt);
+  TopkExt() : BaseOperator(kNameTopkExt) {}
+};
+
+class MIND_API TopKRouter : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(TopKRouter);
+  TopKRouter() : BaseOperator(kNameTopKRouter) {}
+};
+
+class MIND_API Trace : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Trace);
+  Trace() : BaseOperator(kNameTrace) {}
+};
+
+class MIND_API Transpose : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Transpose);
+  Transpose() : BaseOperator(kNameTranspose) {}
+};
+
+class MIND_API Triu : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Triu);
+  Triu() : BaseOperator(kNameTriu) {}
+  void set_diagonal(const int64_t &diagonal);
+  int64_t get_diagonal() const;
+};
+
+class MIND_API TupleToList : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(TupleToList);
+  TupleToList() : BaseOperator(kNameTupleToList) {}
+};
+
+class MIND_API TupleToTensor : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(TupleToTensor);
+  TupleToTensor() : BaseOperator(kNameTupleToTensor) {}
+};
+
+class MIND_API UniformExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UniformExt);
+  UniformExt() : BaseOperator(kNameUniformExt) {}
+};
+
+class MIND_API Unique2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Unique2);
+  Unique2() : BaseOperator(kNameUnique2) {}
+};
+
+class MIND_API UniqueDim : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UniqueDim);
+  UniqueDim() : BaseOperator(kNameUniqueDim) {}
+};
+
+class MIND_API UnsortedSegmentSum : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UnsortedSegmentSum);
+  UnsortedSegmentSum() : BaseOperator(kNameUnsortedSegmentSum) {}
+};
+
+class MIND_API UnstackExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UnstackExt);
+  UnstackExt() : BaseOperator(kNameUnstackExt) {}
+  void set_axis(const int64_t &axis);
+  int64_t get_axis() const;
+};
+
+class MIND_API UpsampleBilinear2DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleBilinear2DGrad);
+  UpsampleBilinear2DGrad() : BaseOperator(kNameUpsampleBilinear2DGrad) {}
+};
+
+class MIND_API UpsampleBilinear2D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleBilinear2D);
+  UpsampleBilinear2D() : BaseOperator(kNameUpsampleBilinear2D) {}
+};
+
+class MIND_API UpsampleLinear1DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleLinear1DGrad);
+  UpsampleLinear1DGrad() : BaseOperator(kNameUpsampleLinear1DGrad) {}
+};
+
+class MIND_API UpsampleLinear1D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleLinear1D);
+  UpsampleLinear1D() : BaseOperator(kNameUpsampleLinear1D) {}
+};
+
+class MIND_API UpsampleNearest1DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleNearest1DGrad);
+  UpsampleNearest1DGrad() : BaseOperator(kNameUpsampleNearest1DGrad) {}
+};
+
+class MIND_API UpsampleNearest1D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleNearest1D);
+  UpsampleNearest1D() : BaseOperator(kNameUpsampleNearest1D) {}
+};
+
+class MIND_API UpsampleNearest2DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleNearest2DGrad);
+  UpsampleNearest2DGrad() : BaseOperator(kNameUpsampleNearest2DGrad) {}
+};
+
+class MIND_API UpsampleNearest2D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleNearest2D);
+  UpsampleNearest2D() : BaseOperator(kNameUpsampleNearest2D) {}
+};
+
+class MIND_API UpsampleNearest3DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleNearest3DGrad);
+  UpsampleNearest3DGrad() : BaseOperator(kNameUpsampleNearest3DGrad) {}
+};
+
+class MIND_API UpsampleNearest3D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleNearest3D);
+  UpsampleNearest3D() : BaseOperator(kNameUpsampleNearest3D) {}
+};
+
+class MIND_API UpsampleTrilinear3DGrad : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleTrilinear3DGrad);
+  UpsampleTrilinear3DGrad() : BaseOperator(kNameUpsampleTrilinear3DGrad) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+};
+
+class MIND_API UpsampleTrilinear3D : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(UpsampleTrilinear3D);
+  UpsampleTrilinear3D() : BaseOperator(kNameUpsampleTrilinear3D) {}
+  void set_align_corners(const bool &align_corners);
+  bool get_align_corners() const;
+};
+
+class MIND_API View : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(View);
+  View() : BaseOperator(kNameView) {}
+};
+
+class MIND_API ZerosLikeExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ZerosLikeExt);
+  ZerosLikeExt() : BaseOperator(kNameZerosLikeExt) {}
+};
+
+class MIND_API ZerosLike : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(ZerosLike);
+  ZerosLike() : BaseOperator(kNameZerosLike) {}
+};
+
+class MIND_API Zeros : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(Zeros);
+  Zeros() : BaseOperator(kNameZeros) {}
+};
+
+class MIND_API DynamicQuantExt : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(DynamicQuantExt);
+  DynamicQuantExt() : BaseOperator(kNameDynamicQuantExt) {}
+};
+
+class MIND_API FusedInferAttentionScore : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(FusedInferAttentionScore);
+  FusedInferAttentionScore() : BaseOperator(kNameFusedInferAttentionScore) {}
+  void set_num_heads(const int64_t &num_heads);
+  int64_t get_num_heads() const;
+  void set_scale_value(const float &scale_value);
+  float get_scale_value() const;
+  void set_pre_tokens(const int64_t &pre_tokens);
+  int64_t get_pre_tokens() const;
+  void set_next_tokens(const int64_t &next_tokens);
+  int64_t get_next_tokens() const;
+  void set_input_layout(const int64_t &input_layout);
+  int64_t get_input_layout() const;
+  void set_num_key_value_heads(const int64_t &num_key_value_heads);
+  int64_t get_num_key_value_heads() const;
+  void set_sparse_mode(const int64_t &sparse_mode);
+  int64_t get_sparse_mode() const;
+  void set_inner_precise(const int64_t &inner_precise);
+  int64_t get_inner_precise() const;
+  void set_block_size(const int64_t &block_size);
+  int64_t get_block_size() const;
+  void set_antiquant_mode(const int64_t &antiquant_mode);
+  int64_t get_antiquant_mode() const;
+  void set_softmax_lse_flag(const bool &softmax_lse_flag);
+  bool get_softmax_lse_flag() const;
+};
+
+class MIND_API GroupedMatmul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(GroupedMatmul);
+  GroupedMatmul() : BaseOperator(kNameGroupedMatmul) {}
+  void set_split_item(const int64_t &split_item);
+  int64_t get_split_item() const;
+  void set_group_type(const int64_t &group_type);
+  int64_t get_group_type() const;
+};
+
+class MIND_API KVCacheScatterUpdate : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(KVCacheScatterUpdate);
+  KVCacheScatterUpdate() : BaseOperator(kNameKVCacheScatterUpdate) {}
+};
+
+class MIND_API MatmulBiasSplitOut2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatmulBiasSplitOut2);
+  MatmulBiasSplitOut2() : BaseOperator(kNameMatmulBiasSplitOut2) {}
+};
+
+class MIND_API MatmulBiasSplitOut3 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatmulBiasSplitOut3);
+  MatmulBiasSplitOut3() : BaseOperator(kNameMatmulBiasSplitOut3) {}
+};
+
+class MIND_API MatmulBiasSplitSiluOut2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatmulBiasSplitSiluOut2);
+  MatmulBiasSplitSiluOut2() : BaseOperator(kNameMatmulBiasSplitSiluOut2) {}
+};
+
+class MIND_API MatmulSplitOut2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatmulSplitOut2);
+  MatmulSplitOut2() : BaseOperator(kNameMatmulSplitOut2) {}
+};
+
+class MIND_API MatmulSplitOut3 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatmulSplitOut3);
+  MatmulSplitOut3() : BaseOperator(kNameMatmulSplitOut3) {}
+};
+
+class MIND_API MatmulSplitSiluOut2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MatmulSplitSiluOut2);
+  MatmulSplitSiluOut2() : BaseOperator(kNameMatmulSplitSiluOut2) {}
+};
+
+class MIND_API MoeFinalizeRouting : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(MoeFinalizeRouting);
+  MoeFinalizeRouting() : BaseOperator(kNameMoeFinalizeRouting) {}
+};
+
+class MIND_API QuantBatchMatmul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(QuantBatchMatmul);
+  QuantBatchMatmul() : BaseOperator(kNameQuantBatchMatmul) {}
+  void set_transpose_x1(const bool &transpose_x1);
+  bool get_transpose_x1() const;
+  void set_transpose_x2(const bool &transpose_x2);
+  bool get_transpose_x2() const;
+  void set_dtype(const int64_t &dtype);
+  int64_t get_dtype() const;
+};
+
+class MIND_API QuantV2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(QuantV2);
+  QuantV2() : BaseOperator(kNameQuantV2) {}
+};
+
+class MIND_API QuantbatchmatmulSplitOut2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(QuantbatchmatmulSplitOut2);
+  QuantbatchmatmulSplitOut2() : BaseOperator(kNameQuantbatchmatmulSplitOut2) {}
+};
+
+class MIND_API QuantbatchmatmulSplitOut3 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(QuantbatchmatmulSplitOut3);
+  QuantbatchmatmulSplitOut3() : BaseOperator(kNameQuantbatchmatmulSplitOut3) {}
+};
+
+class MIND_API QuantbatchmatmulSplitSiluOut2 : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(QuantbatchmatmulSplitSiluOut2);
+  QuantbatchmatmulSplitSiluOut2() : BaseOperator(kNameQuantbatchmatmulSplitSiluOut2) {}
+};
+
+class MIND_API WeightQuantBatchMatmul : public BaseOperator {
+ public:
+  MIND_API_BASE_MEMBER(WeightQuantBatchMatmul);
+  WeightQuantBatchMatmul() : BaseOperator(kNameWeightQuantBatchMatmul) {}
+  void set_transpose_x(const bool &transpose_x);
+  bool get_transpose_x() const;
+  void set_transpose_weight(const bool &transpose_weight);
+  bool get_transpose_weight() const;
+  void set_antiquant_group_size(const int64_t &antiquant_group_size);
+  int64_t get_antiquant_group_size() const;
+};
+
+}  // namespace mindspore::ops
+#endif  // MINDSPORE_CORE_OPS_GEN_LITE_OPS_H_

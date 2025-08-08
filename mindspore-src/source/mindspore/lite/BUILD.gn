@@ -1,0 +1,766 @@
+# Copyright 2022 Huawei Technologies Co., Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ============================================================================
+
+# Here we port mindespore for OHOS from upstream community, by creating gn scripts
+# which translated from the cmake scripts at upstream.
+#
+# This BUILD.gn is the main build entry of ohos-ms. And it is corresponding to the
+# cmake procedure with following options applied:
+#
+#   MSLITE_GPU_BACKEND                      = ""
+#   MSLITE_REGISTRY_DEVICE                  = off
+#   MSLITE_MICRO_PLATFORM                   = auto
+#   MSLITE_ENABLE_NPU                       = off
+#   MSLITE_ENABLE_TRAIN                     = off (train features depends on minddata, not support yet.)
+#   MSLITE_ENABLE_SSE                       = off (default off, turn on for x86_64)
+#   MSLITE_ENABLE_AVX                       = off (default off, turn on for x86_64)
+#   MSLITE_ENABLE_AVX512                    = off (default off, turn on for x86_64)
+#   MSLITE_ENABLE_CONVERTER                 = off (converter tool is not embeded in ohos image)
+#   MSLITE_ENABLE_TOOLS                     = off (no lite tool is embeded in ohos image)
+#   MSLITE_ENABLE_TESTCASES                 = off
+#   MSLITE_ENABLE_RUNTIME_PASS              = on
+#   MSLITE_ENABLE_HIGH_PERFORMANCE          = off
+#   MSLITE_ENABLE_STRING_KERNEL             = on
+#   MSLITE_ENABLE_CONTROLFLOW               = on
+#   MSLITE_ENABLE_AUTO_PARALLEL             = on
+#   MSLITE_ENABLE_WEIGHT_DECODE             = on
+#   MSLITE_ENABLE_CUSTOM_KERNEL             = on
+#   MSLITE_ENABLE_MINDRT                    = on
+#   MSLITE_ENABLE_DELEGATE                  = on
+#   MSLITE_ENABLE_FP16                      = off (default off, turn on for arm64)
+#   MSLITE_ENABLE_INT8                      = on
+#   MSLITE_ENABLE_ACL                       = off
+#   MSLITE_ENABLE_ACL_QUANT_PARAM           = off
+#   MSLITE_ENABLE_MODEL_ENCRYPTION          = off
+#   MSLITE_ENABLE_SPARSE_COMPUTE            = off
+#   MSLITE_ENABLE_RUNTIME_CONVERT           = off
+#   MSLITE_ENABLE_RUNTIME_GLOG              = off (ohos-ms adapts to os-buildin hilog)
+#   MSLITE_ENABLE_COVERAGE                  = off
+#   MSLITE_ENABLE_SERVER_INFERENCE          = off
+#   MSLITE_ENABLE_DYNAMIC_THREAD_DISTRIBUTE = off
+#   MSLITE_ENABLE_BFC_MEMORY                = off
+#   MSLITE_ENABLE_PARALLEL_INFERENCE        = off
+#   MSLITE_ENABLE_SHARING_MODEL_WEIGHT      = off
+#   MSLITE_ENABLE_EXPERIMENTAL_KERNEL       = on
+#   MSLITE_ENABLE_GRAPH_KERNEL              = off
+#   MSLITE_ENABLE_CONVERT_PYTORCH_MODEL     = off
+#   MSLITE_ENABLE_KERNEL_EXECUTOR           = off
+#   MSLITE_ENABLE_GITEE_MIRROR              = off (ohos-ms should only use the third-parties which provides by other ohos repos)
+#   MSLITE_ENABLE_CLOUD_FUSION_INFERENCE    = off
+#   MSLITE_ENABLE_CLOUD_INFERENCE           = off (alias to MSLITE_ENABLE_CLOUD_FUSION_INFERENCE)
+#   MSLITE_ENABLE_MODEL_OBF                 = off (enable model obfuscation)
+#   MSLITE_ENABLE_MODEL_PRE_INFERENCE       = off (enable model do pre-inference when Build interface is called)
+#   MSLITE_EXPORT_COMPUTE_IR                = off (export graph structure dotfile when debug mode)
+#   MSLITE_ENABLE_PACKAGE_WHEEL             = off (enable package python wheel)
+#   MSLITE_ENABLE_NNRT                      = off (enable NNRT)
+#
+# We try to keep the options consist with the default ones at upstream, and provide
+# the reason on the behind of non-consist options.
+
+import("//build/ohos.gni")
+
+declare_args() {
+  mindspore_feature_nnrt_metagraph = false
+}
+
+ohos_group("mindspore") {
+  deps = [
+    ":mindspore_lib",
+    ":mindspore_ndk",
+    ":mindspore_train_lib",
+    "mindir:mindir_lib",
+    "src/litert/js_api:mindsporelite_napi",
+  ]
+}
+
+# Inference library
+cxx_api_sources = [
+  "src/litert/cxx_api/cell.cc",
+  "src/litert/cxx_api/context.cc",
+  "src/litert/cxx_api/converters.cc",
+  "src/litert/cxx_api/graph/graph.cc",
+  "src/litert/cxx_api/kernel.cc",
+  "src/litert/cxx_api/model/model.cc",
+  "src/litert/cxx_api/model/model_group.cc",
+  "src/litert/cxx_api/model/model_group_impl.cc",
+  "src/litert/cxx_api/model/model_impl.cc",
+  "src/litert/cxx_api/serialization.cc",
+  "src/litert/cxx_api/tensor/tensor_impl.cc",
+  "src/litert/cxx_api/tensor_utils.cc",
+  "src/litert/cxx_api/types.cc",
+]
+
+c_api_sources = [
+  "src/litert/c_api/context_c.cc",
+  "src/litert/c_api/model_c.cc",
+  "src/litert/c_api/tensor_c.cc",
+]
+
+api_source = [ "../core/utils/status.cc" ]
+
+control_flow_kernel_sources = [
+  "src/control_flow/kernel/entrance_subgraph_kernel.cc",
+  "src/control_flow/kernel/exit_subgraph_kernel.cc",
+  "src/control_flow/kernel/identity_kernel.cc",
+]
+
+auto_parallel_source = [ "src/litert/sub_graph_split.cc" ]
+
+custom_registry_sources = [
+  "src/registry/kernel_interface_registry.cc",
+  "src/registry/register_kernel.cc",
+  "src/registry/register_kernel_impl.cc",
+  "src/registry/register_kernel_interface.cc",
+]
+
+weight_decode_source = [ "src/litert/weight_decoder.cc" ]
+
+all_lite_sources = [
+  "src/control_flow/control_flow_scheduler.cc",
+  "src/control_flow/control_subgraph_creator.cc",
+  "src/errorcode.cc",
+  "src/executor/kernel_exec.cc",
+  "src/executor/sub_graph_kernel.cc",
+  "src/litert/allocator.cc",
+  "src/litert/cpu_info.cc",
+  "src/litert/executor.cc",
+  "src/litert/huffman_decode.cc",
+  "src/litert/infer_manager.cc",
+  "src/litert/inner_allocator.cc",
+  "src/litert/inner_context.cc",
+  "src/litert/kernel_exec_util.cc",
+  "src/litert/kernel_registry.cc",
+  "src/litert/lite_kernel.cc",
+  "src/litert/lite_model.cc",
+  "src/litert/lite_session.cc",
+  "src/litert/model_manager.cc",
+  "src/litert/pack_weight_manager.cc",
+  "src/litert/runtime_allocator.cc",
+  "src/litert/runtime_packed_node_pass.cc",
+  "src/litert/runtime_pass.cc",
+  "src/litert/runtime_shape_fusion_pass.cc",
+  "src/litert/scheduler.cc",
+  "src/litert/schema_tensor_wrapper.cc",
+  "src/litert/tensor_category.cc",
+  "src/litert/thread_pool_reuse_manager.cc",
+  "src/tensor.cc",
+  "src/tensorlist.cc",
+  "tools/converter/quantizer/fse_bit_stream.cc",
+  "tools/converter/quantizer/fse_decoder.cc",
+]
+
+lite_mindrt_sources = [
+  "src/control_flow/actor/entrance_actor.cc",
+  "src/control_flow/actor/exit_actor.cc",
+  "src/control_flow/actor/switch_actor.cc",
+  "src/control_flow/control_actor_creator.cc",
+  "src/litert/lite_mindrt.cc",
+  "src/litert/mindrt_executor.cc",
+  "src/litert/parallel_lite_actor.cc",
+]
+
+all_lite_sources += cxx_api_sources
+all_lite_sources += api_source
+all_lite_sources += control_flow_kernel_sources
+all_lite_sources += auto_parallel_source
+all_lite_sources += custom_registry_sources
+all_lite_sources += weight_decode_source
+all_lite_sources += lite_mindrt_sources
+
+basic_populate_sources = [
+  "src/common/ops/populate/activation_grad_populate.cc",
+  "src/common/ops/populate/activation_populate.cc",
+  "src/common/ops/populate/adam_populate.cc",
+  "src/common/ops/populate/add_populate.cc",
+  "src/common/ops/populate/adder_populate.cc",
+  "src/common/ops/populate/affine_populate.cc",
+  "src/common/ops/populate/all_gather.cc",
+  "src/common/ops/populate/argmax_populate.cc",
+  "src/common/ops/populate/argmin_populate.cc",
+  "src/common/ops/populate/arithmetic_populate.cc",
+  "src/common/ops/populate/arithmetic_self_populate.cc",
+  "src/common/ops/populate/assert_populate.cc",
+  "src/common/ops/populate/assign_add_populate.cc",
+  "src/common/ops/populate/assign_populate.cc",
+  "src/common/ops/populate/attention_populate.cc",
+  "src/common/ops/populate/audio_spectrogram_populate.cc",
+  "src/common/ops/populate/batch_norm_populate.cc",
+  "src/common/ops/populate/batch_to_space_populate.cc",
+  "src/common/ops/populate/bias_add_populate.cc",
+  "src/common/ops/populate/broadcast_to_populate.cc",
+  "src/common/ops/populate/call_populate.cc",
+  "src/common/ops/populate/cast_populate.cc",
+  "src/common/ops/populate/clip_populate.cc",
+  "src/common/ops/populate/common_populate.cc",
+  "src/common/ops/populate/concat_populate.cc",
+  "src/common/ops/populate/constant_of_shape_populate.cc",
+  "src/common/ops/populate/conv2d_populate.cc",
+  "src/common/ops/populate/crop_and_resize_populate.cc",
+  "src/common/ops/populate/crop_populate.cc",
+  "src/common/ops/populate/cumsum_populate.cc",
+  "src/common/ops/populate/custom_populate.cc",
+  "src/common/ops/populate/deconv2d_populate.cc",
+  "src/common/ops/populate/default_populate.cc",
+  "src/common/ops/populate/depth_to_space_populate.cc",
+  "src/common/ops/populate/detection_post_process_populate.cc",
+  "src/common/ops/populate/div_populate.cc",
+  "src/common/ops/populate/dynamic_quant_populate.cc",
+  "src/common/ops/populate/eltwise_populate.cc",
+  "src/common/ops/populate/embedding_lookup_populate.cc",
+  "src/common/ops/populate/erf_populate.cc",
+  "src/common/ops/populate/exp_populate.cc",
+  "src/common/ops/populate/expand_dims_populate.cc",
+  "src/common/ops/populate/fill_populate.cc",
+  "src/common/ops/populate/flatten_populate.cc",
+  "src/common/ops/populate/full_connection_populate.cc",
+  "src/common/ops/populate/fused_batchnorm_populate.cc",
+  "src/common/ops/populate/gather_d_populate.cc",
+  "src/common/ops/populate/gather_nd_populate.cc",
+  "src/common/ops/populate/gather_populate.cc",
+  "src/common/ops/populate/glu_populate.cc",
+  "src/common/ops/populate/group_norm_populate.cc",
+  "src/common/ops/populate/gru_populate.cc",
+  "src/common/ops/populate/instance_norm_populate.cc",
+  "src/common/ops/populate/invert_permutation_populate.cc",
+  "src/common/ops/populate/isfinite_populate.cc",
+  "src/common/ops/populate/l2_norm_populate.cc",
+  "src/common/ops/populate/layer_norm_grad_populate.cc",
+  "src/common/ops/populate/layer_norm_populate.cc",
+  "src/common/ops/populate/lin_space_populate.cc",
+  "src/common/ops/populate/local_response_normalization_populate.cc",
+  "src/common/ops/populate/log_softmax_populate.cc",
+  "src/common/ops/populate/lstm_populate.cc",
+  "src/common/ops/populate/matmul_populate.cc",
+  "src/common/ops/populate/mfcc_populate.cc",
+  "src/common/ops/populate/mul_populate.cc",
+  "src/common/ops/populate/nllloss_populate.cc",
+  "src/common/ops/populate/non_max_suppression_populate.cc",
+  "src/common/ops/populate/nonzero_populate.cc",
+  "src/common/ops/populate/one_hot_populate.cc",
+  "src/common/ops/populate/oneslike_populate.cc",
+  "src/common/ops/populate/p_relu_populate.cc",
+  "src/common/ops/populate/pad_populate.cc",
+  "src/common/ops/populate/partial_populate.cc",
+  "src/common/ops/populate/pooling_populate.cc",
+  "src/common/ops/populate/populate_register.cc",
+  "src/common/ops/populate/power_populate.cc",
+  "src/common/ops/populate/prior_box_populate.cc",
+  "src/common/ops/populate/quant_dtype_cast_populate.cc",
+  "src/common/ops/populate/ragged_range_populate.cc",
+  "src/common/ops/populate/random_normal_populate.cc",
+  "src/common/ops/populate/random_standard_normal_populate.cc",
+  "src/common/ops/populate/range_populate.cc",
+  "src/common/ops/populate/rank_populate.cc",
+  "src/common/ops/populate/reduce_populate.cc",
+  "src/common/ops/populate/reduce_scatter.cc",
+  "src/common/ops/populate/reshape_populate.cc",
+  "src/common/ops/populate/resize_populate.cc",
+  "src/common/ops/populate/reverse_populate.cc",
+  "src/common/ops/populate/reverse_sequence_populate.cc",
+  "src/common/ops/populate/roi_pooling_populate.cc",
+  "src/common/ops/populate/scale_populate.cc",
+  "src/common/ops/populate/scatter_element_populate.cc",
+  "src/common/ops/populate/scatter_nd_populate.cc",
+  "src/common/ops/populate/scatter_nd_update_populate.cc",
+  "src/common/ops/populate/select_populate.cc",
+  "src/common/ops/populate/shape_populate.cc",
+  "src/common/ops/populate/size_populate.cc",
+  "src/common/ops/populate/slice_populate.cc",
+  "src/common/ops/populate/softmax_populate.cc",
+  "src/common/ops/populate/space_to_batch_nd_populate.cc",
+  "src/common/ops/populate/space_to_batch_populate.cc",
+  "src/common/ops/populate/space_to_depth_populate.cc",
+  "src/common/ops/populate/sparse_fill_empty_rows_populate.cc",
+  "src/common/ops/populate/sparse_reshape_populate.cc",
+  "src/common/ops/populate/sparse_segment_sum_populate.cc",
+  "src/common/ops/populate/sparse_softmax_cross_entropy_with_logits_populate.cc",
+  "src/common/ops/populate/sparse_to_dense_populate.cc",
+  "src/common/ops/populate/splice_populate.cc",
+  "src/common/ops/populate/split_populate.cc",
+  "src/common/ops/populate/split_with_overlap_populate.cc",
+  "src/common/ops/populate/squeeze_populate.cc",
+  "src/common/ops/populate/stack_populate.cc",
+  "src/common/ops/populate/strided_slice_grad_populate.cc",
+  "src/common/ops/populate/strided_slice_populate.cc",
+  "src/common/ops/populate/sub_populate.cc",
+  "src/common/ops/populate/tile_populate.cc",
+  "src/common/ops/populate/topk_populate.cc",
+  "src/common/ops/populate/transpose_populate.cc",
+  "src/common/ops/populate/triu_tril_populate.cc",
+  "src/common/ops/populate/uniform_real_populate.cc",
+  "src/common/ops/populate/unique_populate.cc",
+  "src/common/ops/populate/unsorted_segment_sum_populate.cc",
+  "src/common/ops/populate/unsqueeze_populate.cc",
+  "src/common/ops/populate/unstack_populate.cc",
+  "src/common/ops/populate/where_populate.cc",
+]
+
+string_populate_sources = [
+  "src/common/ops/populate/string/custom_extract_features_populate.cc",
+  "src/common/ops/populate/string/custom_normalize_populate.cc",
+  "src/common/ops/populate/string/custom_predict_populate.cc",
+  "src/common/ops/populate/string/hashtable_lookup_populate.cc",
+  "src/common/ops/populate/string/lsh_projection_populate.cc",
+  "src/common/ops/populate/string/skip_gram_populate.cc",
+]
+
+control_populate_sources = [
+  "src/common/ops/populate/control/switch_populate.cc",
+  "src/common/ops/populate/control/tensor_array_populate.cc",
+  "src/common/ops/populate/control/tensorlistfromtensor_populate.cc",
+  "src/common/ops/populate/control/tensorlistgetitem_populate.cc",
+  "src/common/ops/populate/control/tensorlistreserve_populate.cc",
+  "src/common/ops/populate/control/tensorlistsetlitem_populate.cc",
+  "src/common/ops/populate/control/tensorliststack_populate.cc",
+]
+
+all_ops_sources = basic_populate_sources
+all_ops_sources += string_populate_sources
+all_ops_sources += control_populate_sources
+
+all_sources = all_lite_sources
+all_sources += all_ops_sources
+
+missing_sources = [ "src/extendrt/mindir_loader/model_loader.cc" ]
+
+all_sources += missing_sources
+
+SUPPORT_NNRT = false
+
+# currently, only arm/arm64 real machine support nnrt
+if ((target_cpu == "arm" || target_cpu == "arm64") && !is_emulator) {
+  SUPPORT_NNRT = true
+}
+
+ohos_shared_library("mindspore_lib") {
+  branch_protector_ret = "pac_ret"
+  deps = [
+    "../ccsrc/plugin/device/cpu/kernel/nnacl/:nnacl_obj",
+    "../core/mindrt/:mindrt_obj",
+    "src/common/:lite_common_mid_obj",
+    "src/litert/kernel/cpu/:cpu_kernel_obj",
+  ]
+
+  sources = all_sources
+
+  include_dirs = [
+    "../../../../../../third_party/flatbuffers/include",
+    "./",
+    "../",
+    "../../",
+    "../core",
+    "src",
+    "src/c_api/",
+    "../ccsrc/plugin/device/cpu/kernel/",
+    "../core/mindrt/src/",
+    "../core/mindrt/include/",
+    "../../third_party/",
+    "./schema/",
+    "../ccsrc/",
+    "src/litert/kernel/cpu/",
+    "../core/mindrt/src/",
+  ]
+
+  defines = [
+    "ENABLE_MINDRT",
+    "MS_COMPILE_OHOS",
+    "PRIMITIVE_WRITEABLE",
+    "RUNTIME_PASS_CLIP",
+    "ENABLE_MULTI_LAYOUT",
+    "VERSION_STR=\"2.3.0\"",
+    "ENABLE_HI_APP_EVENT",
+  ]
+
+  if (target_cpu == "arm") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM32",
+      "ENABLE_NEON",
+    ]
+  } else if (target_cpu == "arm64") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM64",
+      "ENABLE_NEON",
+      "ENABLE_FP16",
+      "USE_OPENCL_WRAPPER",
+      "MS_OPENCL_PROFILE=false",
+      "CL_TARGET_OPENCL_VERSION=200",
+      "CL_HPP_TARGET_OPENCL_VERSION=120",
+      "CL_HPP_MINIMUM_OPENCL_VERSION=120",
+    ]
+  } else if (target_cpu == "x86_64") {
+    defines += [
+      "ENABLE_SSE",
+      "ENABLE_AVX",
+    ]
+
+    # emulator not support avx512
+    if (!is_emulator) {
+      defines += [ "ENABLE_AVX512" ]
+    }
+  }
+
+  configs = [
+    ":mindspore_api",
+    ":disable_android",
+    ":opencl_option",
+    ":secure_option",
+  ]
+
+  remove_configs = [ "//build/config/compiler:no_rtti" ]
+
+  external_deps = [ "hilog:libhilog" ]
+
+  public_external_deps = [ "flatbuffers:libflatbuffers_static" ]
+
+  output_name = "libmindspore-lite"
+  output_extension = "so"
+  innerapi_tags = [ "platformsdk" ]
+  if (SUPPORT_NNRT) {
+    if (mindspore_feature_nnrt_metagraph) {
+      defines += [ "SUPPORT_NNRT_METAGRAPH" ]
+      sources += [
+        "src/litert/cache_session.cc",
+        "src/litert/delegate/nnrt/hiai_foundation_wrapper.cc",
+      ]
+      print("enabled feature: mindspore_feature_nnrt_metagraph")
+    }
+    sources += [
+      "src/litert/delegate/nnrt/checker/primitive_check.cc",
+      "src/litert/delegate/nnrt/extension_options_parser.cc",
+      "src/litert/delegate/nnrt/nnrt_allocator.cc",
+      "src/litert/delegate/nnrt/nnrt_delegate.cc",
+      "src/litert/delegate/nnrt/nnrt_model_kernel.cc",
+      "src/litert/delegate/nnrt/nnrt_utils.cc",
+    ]
+    include_dirs += [
+      "src/delegate/nnrt/include",
+      "../../mindspore/core/ir",
+      "mindir/include",
+      "mindir/inner_headers",
+    ]
+
+    external_deps += [
+      "neural_network_runtime:libneural_network_core",
+      "neural_network_runtime:libneural_network_runtime",
+    ]
+
+    deps += [ "mindir:mindir_lib" ]
+    defines += [ "SUPPORT_NNRT" ]
+  }
+  defines += [ "MSLITE_ENABLE_EXPERIMENTAL_KERNEL" ]
+  defines += [ "SUPPORT_TRAIN" ]
+  cflags_cc = [
+    "-Wno-ignored-qualifiers",
+    "-Wunused-private-field",
+    "-Wno-unused-private-field",
+    "-Wno-inconsistent-missing-override",
+    "-Wno-macro-redefined",
+    "-Wno-constant-conversion",
+  ]
+  part_name = "mindspore"
+  subsystem_name = "thirdparty"
+}
+
+# NDK lib
+ohos_shared_library("mindspore_ndk") {
+  branch_protector_ret = "pac_ret"
+  deps = [
+    ":mindspore_lib",
+    ":mindspore_train_lib",
+  ]
+
+  sources = c_api_sources
+
+  include_dirs = [
+    "../../../../../../base/hiviewdfx/hilog/interfaces/native/innerkits/include",
+    "../../../../../../third_party/flatbuffers/include",
+    "./",
+    "../",
+    "../../",
+    "../core",
+    "src",
+    "src/c_api/",
+    "../ccsrc/plugin/device/cpu/kernel/",
+    "../core/mindrt/src/",
+    "../core/mindrt/include/",
+    "../../third_party/",
+    "./schema/",
+    "../ccsrc/",
+  ]
+
+  defines = [
+    "MS_COMPILE_OHOS",
+    "PRIMITIVE_WRITEABLE",
+    "RUNTIME_PASS_CLIP",
+    "ENABLE_MULTI_LAYOUT",
+    "VERSION_STR=\"2.3.0\"",
+    "ENABLE_HI_APP_EVENT",
+  ]
+
+  if (SUPPORT_NNRT) {
+    defines += [ "SUPPORT_NNRT" ]
+    if (mindspore_feature_nnrt_metagraph) {
+      defines += [ "SUPPORT_NNRT_METAGRAPH" ]
+      print("enabled feature: mindspore_feature_nnrt_metagraph")
+    }
+    external_deps = [
+      "neural_network_runtime:libneural_network_core",
+      "neural_network_runtime:libneural_network_runtime",
+    ]
+  }
+
+  public_external_deps = [ "flatbuffers:libflatbuffers_static" ]
+
+  configs = [
+    ":mindspore_api",
+    ":disable_android",
+    ":secure_option",
+  ]
+
+  public_configs = [ ":mindspore_api" ]
+
+  remove_configs = [ "//build/config/compiler:no_rtti" ]
+
+  output_name = "libmindspore_lite_ndk"
+  output_extension = "so"
+  innerapi_tags = [ "ndk" ]
+  cflags_cc = [
+    "-Wno-ignored-qualifiers",
+    "-Wunused-private-field",
+    "-Wno-unused-private-field",
+    "-Wno-inconsistent-missing-override",
+    "-Wno-macro-redefined",
+    "-Wno-constant-conversion",
+  ]
+  part_name = "mindspore"
+  subsystem_name = "thirdparty"
+}
+
+# Train library
+all_train_sources = [
+  # ${API_TRAIN_SRC} is empty.
+  # ${TRAIN_SRC_WITH_MD} is empty.
+  "src/common/quant_utils.cc",
+  "src/common/storage.cc",
+  "src/litert/cxx_api/metrics/accuracy.cc",
+  "src/litert/cxx_api/train/converters.cc",
+  "src/litert/cxx_api/train/model_build.cc",
+  "src/litert/cxx_api/train/model_build_impl.cc",
+  "src/litert/cxx_api/train/train_support.cc",
+  "src/train/accuracy_metrics.cc",
+
+  #  "src/train/accuracy_monitor.cc", # depends on minddata header, not compiled
+  "src/train/classification_train_accuracy_monitor.cc",
+  "src/train/graph_dropout.cc",
+  "src/train/graph_fusion.cc",
+  "src/train/loss_monitor.cc",
+  "src/train/lr_scheduler.cc",
+  "src/train/opt_allocator.cc",
+  "src/train/optimizer/common/fusion_utils.cc",
+  "src/train/optimizer/fusion/gru_fusion_pass.cc",
+  "src/train/optimizer/fusion/matmul_activation_fusion_pass.cc",
+  "src/train/optimizer/fusion/matmul_add_fusion_pass.cc",
+  "src/train/optimizer/fusion/matmul_matmul_add_fusion_pass.cc",
+  "src/train/optimizer/fusion/remove_redundant_tensor.cc",
+  "src/train/optimizer/fusion/reshape_gather_reshape_fusion_pass.cc",
+  "src/train/train_export.cc",
+  "src/train/train_populate_parameter.cc",
+  "src/train/train_session.cc",
+  "src/train/train_utils.cc",
+  "src/train/transfer_session.cc",
+  "tools/common/meta_graph_utils.cc",
+  "tools/common/statistic_utils.cc",
+  "tools/converter/legacy_optimizer/fusion/fusion_pass.cc",
+  "tools/converter/legacy_optimizer/fusion/fusion_pattern.cc",
+  "tools/converter/legacy_optimizer/fusion/matmul_biasadd_fusion_pass.cc",
+  "tools/converter/legacy_optimizer/graph/dropout_node_remove_pass.cc",
+  "tools/converter/legacy_optimizer/graph/isolated_node_remove_pass.cc",
+  "tools/converter/legacy_optimizer/graph/subgraph_node_pass.cc",
+  "tools/converter/optimizer.cc",
+]
+
+fp16_train_kernel_sources = [
+  "src/litert/kernel/cpu/fp16_grad/activation_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/arithmetic_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/arithmetic_fp16_self_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/bias_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/bn_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/convolution_fp16_grad_filter.cc",
+  "src/litert/kernel/cpu/fp16_grad/convolution_fp16_grad_input.cc",
+  "src/litert/kernel/cpu/fp16_grad/dropout_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/layernorm_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/neg_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/pooling_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/resize_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/strided_slice_fp16_grad.cc",
+  "src/litert/kernel/cpu/fp16_grad/unsorted_segment_sum_fp16.cc",
+]
+
+fp32_train_kernel_sources = [
+  "src/litert/kernel/cpu/fp32_grad/activation_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/adam.cc",
+  "src/litert/kernel/cpu/fp32_grad/adam_weight_decay.cc",
+  "src/litert/kernel/cpu/fp32_grad/apply_momentum.cc",
+  "src/litert/kernel/cpu/fp32_grad/arithmetic_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/arithmetic_self_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/assign.cc",
+  "src/litert/kernel/cpu/fp32_grad/bias_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/binary_cross_entropy.cc",
+  "src/litert/kernel/cpu/fp32_grad/binary_cross_entropy_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/bn_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/convolution.cc",
+  "src/litert/kernel/cpu/fp32_grad/convolution_grad_filter.cc",
+  "src/litert/kernel/cpu/fp32_grad/convolution_grad_input.cc",
+  "src/litert/kernel/cpu/fp32_grad/custom_gather_d_grad_v2_fp32.cc",
+  "src/litert/kernel/cpu/fp32_grad/deconvolution_grad_filter.cc",
+  "src/litert/kernel/cpu/fp32_grad/dropout.cc",
+  "src/litert/kernel/cpu/fp32_grad/dropout_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/layernorm_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/lstm_grad_data_fp32.cc",
+  "src/litert/kernel/cpu/fp32_grad/lstm_grad_fp32.cc",
+  "src/litert/kernel/cpu/fp32_grad/lstm_grad_weight_fp32.cc",
+  "src/litert/kernel/cpu/fp32_grad/neg_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/nllloss_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/pooling_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/power_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/resize_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/sgd.cc",
+  "src/litert/kernel/cpu/fp32_grad/sigmoid_cross_entropy_with_logits.cc",
+  "src/litert/kernel/cpu/fp32_grad/sigmoid_cross_entropy_with_logits_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/smooth_l1_loss.cc",
+  "src/litert/kernel/cpu/fp32_grad/smooth_l1_loss_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/softmax_cross_entropy_with_logits.cc",
+  "src/litert/kernel/cpu/fp32_grad/softmax_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/sparse_softmax_cross_entropy_with_logits.cc",
+  "src/litert/kernel/cpu/fp32_grad/strided_slice_grad.cc",
+  "src/litert/kernel/cpu/fp32_grad/unsorted_segment_sum.cc",
+]
+
+#all_train_sources += fp16_train_kernel_sources
+not_needed(fp16_train_kernel_sources)
+all_train_sources += fp32_train_kernel_sources
+
+ohos_shared_library("mindspore_train_lib") {
+  branch_protector_ret = "pac_ret"
+  deps = [ ":mindspore_lib" ]
+
+  sources = all_train_sources
+
+  include_dirs = [
+    "../../../../../../third_party/flatbuffers/include",
+    "./",
+    "../",
+    "../../",
+    "../core",
+    "src",
+    "src/c_api/",
+    "../ccsrc/plugin/device/cpu/kernel/",
+    "../core/mindrt/src/",
+    "../core/mindrt/include/",
+    "../../third_party/",
+    "./schema/",
+    "../ccsrc/",
+  ]
+
+  defines = [
+    "ENABLE_MINDRT",
+    "MS_COMPILE_OHOS",
+    "PRIMITIVE_WRITEABLE",
+    "VERSION_STR=\"2.3.0\"",
+  ]
+
+  if (target_cpu == "arm") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM32",
+      "ENABLE_NEON",
+    ]
+  } else if (target_cpu == "arm64") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM64",
+      "ENABLE_NEON",
+      "ENABLE_FP16",
+      "USE_OPENCL_WRAPPER",
+      "MS_OPENCL_PROFILE=false",
+      "CL_TARGET_OPENCL_VERSION=200",
+      "CL_HPP_TARGET_OPENCL_VERSION=120",
+      "CL_HPP_MINIMUM_OPENCL_VERSION=120",
+    ]
+  }
+  configs = [
+    ":mindspore_api",
+    ":disable_android",
+    ":train_kernel_option",
+    ":secure_option",
+  ]
+
+  remove_configs = [ "//build/config/compiler:no_rtti" ]
+  external_deps = [ "hilog:libhilog" ]
+  public_external_deps = [ "flatbuffers:libflatbuffers_static" ]
+  innerapi_tags = [ "platformsdk" ]
+  output_name = "libmindspore-lite-train"
+  output_extension = "so"
+  defines += [ "SUPPORT_TRAIN" ]
+  cflags_cc = [
+    "-Wno-ignored-qualifiers",
+    "-Wunused-private-field",
+    "-Wno-unused-private-field",
+    "-Wno-inconsistent-missing-override",
+    "-Wno-macro-redefined",
+    "-Wno-constant-conversion",
+  ]
+  part_name = "mindspore"
+}
+
+# Build configurations
+config("opencl_option") {
+  cflags_cc = [ "-Wno-missing-braces" ]
+}
+
+config("mindspore_api") {
+  include_dirs = [
+    "../../",
+    "../../include/",
+    "../../include/c_api",
+  ]
+}
+
+config("disable_android") {
+  cflags = [
+    "-UANDROID",
+    "-U__ANDROID__",
+    "-U__ANDROID_API__",
+  ]
+  cflags_cc = [
+    "-UANDROID",
+    "-U__ANDROID__",
+    "-U__ANDROID_API__",
+  ]
+  ldflags = [ "-Wl,--no-as-needed" ]
+}
+
+config("secure_option") {
+  cflags = [
+    "-fstack-protector-all",
+    "-D_FORTIFY_SOURCE=2",
+  ]
+}
+
+config("train_kernel_option") {
+  cflags_cc = [ "-fno-finite-math-only" ]
+}

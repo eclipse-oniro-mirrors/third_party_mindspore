@@ -1,0 +1,358 @@
+import("//build/ohos.gni")
+
+cpu_kernel_sources = [
+  "base/assert.cc",
+  "base/call.cc",
+  "base/constant_of_shape.cc",
+  "base/convolution_base.cc",
+  "base/custom_base.cc",
+  "base/custom_is_inf.cc",
+  "base/custom_masked_fill.cc",
+  "base/custom_tensor_scatter.cc",
+  "base/detection_post_process_base.cc",
+  "base/format_transpose.cc",
+  "base/group_convolution_base.cc",
+  "base/group_convolution_creator.cc",
+  "base/layout_transform.cc",
+  "base/partial_fusion.cc",
+  "base/quant_dtype_cast.cc",
+  "base/random_normal.cc",
+  "base/reduce_base.cc",
+  "base/resize_base.cc",
+  "base/scatter_nd_base.cc",
+  "base/scatter_nd_binary.cc",
+  "base/select.cc",
+  "base/split_base.cc",
+  "base/split_with_over_lap_base.cc",
+  "base/tensor_scatter_add.cc",
+  "base/transpose_base.cc",
+  "fp32/adder_fp32.cc",
+  "fp32/affine_fp32.cc",
+  "fp32/all_gather_fp32.cc",
+  "fp32/broadcast_to_fp32.cc",
+  "fp32/cast_fp32.cc",
+  "fp32/convolution_1x1_fp32.cc",
+  "fp32/convolution_delegate_fp32.cc",
+  "fp32/convolution_depthwise_3x3_fp32.cc",
+  "fp32/convolution_depthwise_fp32.cc",
+  "fp32/convolution_depthwise_indirect_fp32.cc",
+  "fp32/convolution_depthwise_slidewindow_fp32.cc",
+  "fp32/convolution_depthwise_slidewindow_x86_fp32.cc",
+  "fp32/convolution_fp32.cc",
+  "fp32/convolution_im2col_arm32_fp32.cc",
+  "fp32/convolution_im2col_arm64_fp32.cc",
+  "fp32/convolution_im2col_avx_fp32.cc",
+  "fp32/convolution_im2col_base_fp32.cc",
+  "fp32/convolution_im2col_fp32.cc",
+  "fp32/convolution_im2col_sse_fp32.cc",
+  "fp32/convolution_slidewindow_arm64_fp32.cc",
+  "fp32/convolution_slidewindow_avx_fp32.cc",
+  "fp32/convolution_slidewindow_fp32.cc",
+  "fp32/convolution_sw_1x1_fp32.cc",
+  "fp32/convolution_winograd_arm32_fp32.cc",
+  "fp32/convolution_winograd_arm64_fp32.cc",
+  "fp32/convolution_winograd_avx_fp32.cc",
+  "fp32/convolution_winograd_base_fp32.cc",
+  "fp32/convolution_winograd_fp32.cc",
+  "fp32/convolution_winograd_sse_fp32.cc",
+  "fp32/cumsum_fp32.cc",
+  "fp32/custom_gru_fp32.cc",
+  "fp32/deconvolution_depthwise_fp32.cc",
+  "fp32/deconvolution_fp32.cc",
+  "fp32/deconvolution_winograd_fp32.cc",
+  "fp32/detection_post_process_fp32.cc",
+  "fp32/embedding_lookup_fp32.cc",
+  "fp32/glu_fp32.cc",
+  "fp32/group_convolution_fp32.cc",
+  "fp32/gru_fp32.cc",
+  "fp32/instance_norm_fp32.cc",
+  "fp32/invert_permutation_fp32.cc",
+  "fp32/l2_norm_fp32.cc",
+  "fp32/lstm_fp32.cc",
+  "fp32/lstm_fp32_base.cc",
+  "fp32/lstm_mindir_fp32.cc",
+  "fp32/lstm_non_mindir_fp32.cc",
+  "fp32/matmul_fp32.cc",
+  "fp32/matmul_fp32_arm32.cc",
+  "fp32/matmul_fp32_arm64.cc",
+  "fp32/matmul_fp32_avx.cc",
+  "fp32/matmul_fp32_base.cc",
+  "fp32/matmul_fp32_sse.cc",
+  "fp32/non_max_suppression_fp32.cc",
+  "fp32/oneslike_fp32.cc",
+  "fp32/online_fusion/cast_gather_reduce_fp32.cc",
+  "fp32/online_fusion/reduce_concat_fp32.cc",
+  "fp32/online_fusion/split_reduce_concat_fp32.cc",
+  "fp32/reduce_scatter_fp32.cc",
+  "fp32/relative_position_attention_fp32.cc",
+  "fp32/resize_fp32.cc",
+  "fp32/reverse_sequence_fp32.cc",
+  "fp32/roi_pooling_fp32.cc",
+  "fp32/scatter_nd_update_fp32.cc",
+  "fp32/shape_fusion_fp32.cc",
+  "fp32/space_to_batch_fp32.cc",
+  "fp32/space_to_depth_fp32.cc",
+  "fp32/sparse_fill_empty_rows_fp32.cc",
+  "fp32/sparse_reshape_fp32.cc",
+  "fp32/sparse_segment_sum_fp32.cc",
+  "fp32/sparse_to_dense_fp32.cc",
+  "fp32/topk_fp32.cc",
+  "fp32/transpose_server_fp32.cc",
+  "fp32/uniform_real_fp32.cc",
+  "fp32/unstack_fp32.cc",
+  "nnacl/cxx_utils.cc",
+  "nnacl/nnacl_convolution.cc",
+  "nnacl/nnacl_kernel.cc",
+  "nnacl/nnacl_manager.cc",
+  "nnacl/nnacl_matmul.cc",
+  "nnacl/nnacl_reduce.cc",
+  "nnacl/nnacl_reshape.cc",
+  "nnacl/nnacl_strided_slice.cc",
+]
+
+if (target_cpu != "arm" && target_cpu != "arm64") {
+  cpu_kernel_sources += [ "fp32/cast_for_x86_fp16.cc" ]
+}
+
+arm64_cpu_kernel_sources = [
+  "fp32/convolution_im2col_arm64_fp32.cc",
+  "fp32/convolution_slidewindow_arm64_fp32.cc",
+  "fp32/convolution_winograd_arm64_fp32.cc",
+  "fp32/matmul_fp32_arm64.cc",
+]
+
+arm32_cpu_kernel_sources = [
+  "fp32/convolution_im2col_arm32_fp32.cc",
+  "fp32/convolution_winograd_arm32_fp32.cc",
+  "fp32/matmul_fp32_arm32.cc",
+]
+
+sse_avx_avx512_kernel_sources = [
+  "fp32/convolution_im2col_avx_fp32.cc",
+  "fp32/convolution_im2col_sse_fp32.cc",
+  "fp32/convolution_winograd_avx_fp32.cc",
+  "fp32/convolution_winograd_sse_fp32.cc",
+  "fp32/matmul_fp32_avx.cc",
+  "fp32/matmul_fp32_sse.cc",
+]
+
+fp16_kernel_sources = [
+  "fp16/biasadd_fp16.cc",
+  "fp16/cast_fp16.cc",
+  "fp16/common_fp16.cc",
+  "fp16/convolution_1x1_fp16.cc",
+  "fp16/convolution_delegate_fp16.cc",
+  "fp16/convolution_depthwise_3x3_fp16.cc",
+  "fp16/convolution_depthwise_fp16.cc",
+  "fp16/convolution_depthwise_slidewindow_fp16.cc",
+  "fp16/convolution_fp16.cc",
+  "fp16/convolution_winograd_fp16.cc",
+  "fp16/custom_gru_fp16.cc",
+  "fp16/deconvolution_depthwise_fp16.cc",
+  "fp16/deconvolution_fp16.cc",
+  "fp16/deconvolution_winograd_fp16.cc",
+  "fp16/dynamic_quant_fp16.cc",
+  "fp16/fullconnection_fp16.cc",
+  "fp16/group_convolution_fp16.cc",
+  "fp16/gru_fp16.cc",
+  "fp16/instance_norm_fp16.cc",
+  "fp16/layout_transform_fp16.cc",
+  "fp16/lstm_fp16.cc",
+  "fp16/lstm_fp16_base.cc",
+  "fp16/lstm_mindir_fp16.cc",
+  "fp16/lstm_non_mindir_fp16.cc",
+  "fp16/matmul_base_fp16.cc",
+  "fp16/matmul_fp16.cc",
+  "fp16/quant_dtype_cast_fp16.cc",
+  "fp16/resize_fp16.cc",
+]
+
+int8_kernel_sources = [
+  "int8/activation_int8.cc",
+  "int8/add_int8.cc",
+  "int8/argminmax_int8.cc",
+  "int8/arithmetic_int8.cc",
+  "int8/arithmetic_self_int8.cc",
+  "int8/batch_to_space_int8.cc",
+  "int8/batchnorm_int8.cc",
+  "int8/concat_int8.cc",
+  "int8/convolution_1x1_int8.cc",
+  "int8/convolution_3x3_int8.cc",
+  "int8/convolution_depthwise_3x3_int8.cc",
+  "int8/convolution_depthwise_int8.cc",
+  "int8/convolution_depthwise_slidewindow_int8.cc",
+  "int8/convolution_int8.cc",
+  "int8/convolution_int8_creator.cc",
+  "int8/crop_int8.cc",
+  "int8/deconvolution_depthwise_int8.cc",
+  "int8/deconvolution_int8.cc",
+  "int8/depth_to_space_int8.cc",
+  "int8/detection_post_process_int8.cc",
+  "int8/div_int8.cc",
+  "int8/dynamic_gather_int8.cc",
+  "int8/dynamic_quant.cc",
+  "int8/fullconnection_int8.cc",
+  "int8/gatherNd_int8.cc",
+  "int8/gather_int8.cc",
+  "int8/group_convolution_int8.cc",
+  "int8/hswish_int8.cc",
+  "int8/l2_norm_int8.cc",
+  "int8/layer_norm_int8.cc",
+  "int8/leaky_relu_int8.cc",
+  "int8/matmul_base_int8.cc",
+  "int8/matmul_dynamic_base_int8.cc",
+  "int8/matmul_dynamic_int8.cc",
+  "int8/matmul_dynamic_sdot_int8.cc",
+  "int8/matmul_int8.cc",
+  "int8/mul_int8.cc",
+  "int8/opt_op_handler.cc",
+  "int8/pad_int8.cc",
+  "int8/pooling_int8.cc",
+  "int8/power_int8.cc",
+  "int8/reduce_int8.cc",
+  "int8/relux_int8.cc",
+  "int8/reshape_int8.cc",
+  "int8/resize_int8.cc",
+  "int8/scale_int8.cc",
+  "int8/sigmoid_int8.cc",
+  "int8/slice_int8.cc",
+  "int8/softmax_int8.cc",
+  "int8/space_to_batch_int8.cc",
+  "int8/split_int8.cc",
+  "int8/squeeze_int8.cc",
+  "int8/sub_int8.cc",
+  "int8/swish_int8.cc",
+  "int8/tanh_int8.cc",
+  "int8/topk_int8.cc",
+  "int8/transpose_int8.cc",
+  "int8/unsqueeze_int8.cc",
+]
+
+string_kernel_sources = [
+  "string/extract_feature.cc",
+  "string/hashtable_lookup.cc",
+  "string/lsh_projection.cc",
+  "string/normalize.cc",
+  "string/predict.cc",
+  "string/skip_gram.cc",
+]
+
+control_kernel_sources = [
+  "control/switch.cc",
+  "control/switch_layer.cc",
+  "control/tensor_array.cc",
+  "control/tensorlist_fromtensor.cc",
+  "control/tensorlist_getitem.cc",
+  "control/tensorlist_reserve.cc",
+  "control/tensorlist_setitem.cc",
+  "control/tensorlist_stack.cc",
+]
+
+# emulator not support avx512
+if (!is_emulator) {
+  cpu_kernel_sources += [
+    "fp32/convolution_im2col_avx512_fp32.cc",
+    "fp32/matmul_fp32_avx512.cc",
+  ]
+  sse_avx_avx512_kernel_sources += [
+    "fp32/convolution_im2col_avx512_fp32.cc",
+    "fp32/matmul_fp32_avx512.cc",
+  ]
+}
+
+all_cpu_kernel_sources = cpu_kernel_sources
+all_cpu_kernel_sources += int8_kernel_sources
+all_cpu_kernel_sources += string_kernel_sources
+all_cpu_kernel_sources += control_kernel_sources
+
+if (target_cpu == "arm64") {
+  all_cpu_kernel_sources += fp16_kernel_sources
+} else {
+  not_needed(fp16_kernel_sources)
+}
+
+if (target_cpu == "arm") {
+  all_cpu_kernel_sources -= arm64_cpu_kernel_sources
+  all_cpu_kernel_sources -= sse_avx_avx512_kernel_sources
+  not_needed(arm32_cpu_kernel_sources)
+}
+
+if (target_cpu == "arm64") {
+  all_cpu_kernel_sources -= arm32_cpu_kernel_sources
+  all_cpu_kernel_sources -= sse_avx_avx512_kernel_sources
+  not_needed(arm64_cpu_kernel_sources)
+}
+
+if (target_cpu == "x86_64") {
+  all_cpu_kernel_sources -= arm32_cpu_kernel_sources
+  all_cpu_kernel_sources -= arm64_cpu_kernel_sources
+  not_needed(sse_avx_avx512_kernel_sources)
+}
+
+ohos_source_set("cpu_kernel_obj") {
+  sources = all_cpu_kernel_sources
+
+  deps = [ "../../../../../ccsrc/plugin/device/cpu/kernel/nnacl:nnacl_obj" ]
+
+  include_dirs = [
+    "./",
+    "../../../../",
+    "../../../../../ccsrc/",
+    "../../../../../ccsrc/plugin/device/cpu/kernel/",
+    "../../../../../core/",
+    "../../../../../core/mindrt/src/",
+    "../../../../../core/mindrt/include/",
+    "../../../../../../",
+    "../../../../../../../../../../third_party/flatbuffers/include",
+    "../../../../../../third_party/",
+    "../../../../src/",
+    "../../../../src/c_api",
+    "../../../../../../../../../../base/hiviewdfx/hilog/interfaces/native/innerkits/include",
+  ]
+
+  defines = [
+    "ENABLE_MINDRT",
+    "MS_COMPILE_OHOS",
+    "PRIMITIVE_WRITEABLE",
+    "VERSION_STR=\"2.3.0\"",
+  ]
+  if (target_cpu == "arm") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM32",
+      "ENABLE_NEON",
+    ]
+  } else if (target_cpu == "arm64") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM64",
+      "ENABLE_NEON",
+      "ENABLE_FP16",
+      "USE_OPENCL_WRAPPER",
+      "MS_OPENCL_PROFILE=false",
+      "CL_TARGET_OPENCL_VERSION=200",
+      "CL_HPP_TARGET_OPENCL_VERSION=120",
+      "CL_HPP_MINIMUM_OPENCL_VERSION=120",
+    ]
+  } else if (target_cpu == "x86_64") {
+    defines += [
+      "ENABLE_SSE",
+      "ENABLE_AVX",
+    ]
+    if (!is_emulator) {
+      defines += [ "ENABLE_AVX512" ]
+    }
+  }
+
+  cflags_cc = [
+    "-Wno-ignored-qualifiers",
+    "-Wunused-private-field",
+    "-Wno-unused-private-field",
+    "-Wno-inconsistent-missing-override",
+    "-Wno-macro-redefined",
+    "-Wno-constant-conversion",
+  ]
+
+  part_name = "mindspore"
+  subsystem_name = "thirdparty"
+}

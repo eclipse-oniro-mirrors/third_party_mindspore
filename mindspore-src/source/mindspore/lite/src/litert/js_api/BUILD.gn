@@ -1,0 +1,60 @@
+# Copyright (c) 2023 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("//build/ohos.gni")
+import("//build/ohos/ace/ace.gni")
+
+ohos_shared_library("mindsporelite_napi") {
+  branch_protector_ret = "pac_ret"
+  include_dirs = [
+    "//third_party/mindspore/mindspore-src/source/",
+    "//third_party/mindspore/mindspore-src/source/include/api",
+    "//third_party/mindspore/mindspore-src/source/mindspore/core",
+    "//third_party/mindspore/mindspore-src/source/mindspore/lite",
+    "../../../../../../../../../third_party/libuv/include",
+    "../../../../../../../../../foundation/arkui/napi",
+    "../../../../../../../../../foundation/arkui/napi/interfaces/inner_api",
+    "../../../../../../../../../foundation/arkui/napi/interfaces/kits",
+    "../../../../../../../../../third_party/node/src",
+  ]
+
+  sources = [
+    "common_napi.cc",
+    "mslite_model_napi.cc",
+    "mstensor_napi.cc",
+    "native_module_ohos_ms.cc",
+    "nnrt_device_desc.cc",
+  ]
+
+  configs = [
+    "../../../:disable_android",
+    "../../../:secure_option",
+  ]
+
+  deps = [
+    "../../../:mindspore_lib",
+    "../../../:mindspore_ndk",
+  ]
+  external_deps = [
+    "ability_runtime:abilitykit_native",
+    "ability_runtime:napi_base_context",
+    "c_utils:utils",
+    "hilog:libhilog",
+    "napi:ace_napi",
+    "resource_management:global_resmgr",
+  ]
+
+  relative_install_dir = "module/ai"
+  part_name = "mindspore"
+  subsystem_name = "thirdparty"
+}
