@@ -1,0 +1,11 @@
+approvers:
+- stsuteng
+- yangzhenzhang #
+- yao_yf
+- kisnwang
+- huangxinjing
+- liuchongming74
+- HulkTang
+
+options:
+    no_parent_owners: true
