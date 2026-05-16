@@ -1,0 +1,44 @@
+lin_space:
+    description: |
+        Generate a one-dimensional tensor with `steps` elements, evenly distributed in the interval [start, end].
+        
+
+        .. math::
+            \begin{aligned}
+            &step = (end - start)/(steps - 1)\\
+            &output = [start, start+step, start+2*step, ... , end]
+            \end{aligned}
+
+        Inputs:
+            - **start** (Tensor) -  Start value of interval.
+            - **stop** (Tensor) - Last value of interval.
+            - **num** (Union[int, Tensor]) - Number of elements.
+
+        Outputs:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> start = mindspore.tensor(3, mindspore.float32)
+            >>> stop = mindspore.tensor(10, mindspore.float32)
+            >>> num = 5
+            >>> output = mindspore.ops.LinSpace()(start, stop, num)
+            >>> print(output)
+            [ 3.    4.75  6.5   8.25 10.  ]
+            >>>
+            >>> start = mindspore.tensor(-10, mindspore.float32)
+            >>> stop = mindspore.tensor(10, mindspore.float32)
+            >>> num = 5
+            >>> output = mindspore.ops.LinSpace()(start, stop, num)
+            >>> print(output)
+            [-10.  -5.   0.   5.  10.]
+            >>>
+            >>> start = mindspore.tensor(-10, mindspore.float32)
+            >>> stop = mindspore.tensor(10, mindspore.float32)
+            >>> num = 1
+            >>> output = mindspore.ops.LinSpace()(start, stop, num)
+            >>> print(output)
+            [-10.]

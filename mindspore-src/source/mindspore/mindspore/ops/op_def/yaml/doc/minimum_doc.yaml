@@ -1,0 +1,38 @@
+minimum:
+    description: |
+        Compute the minimum of the two input tensors element-wise.
+
+        .. math::
+            output_i = \min(input_i, other_i)
+
+        Note:
+            - Inputs of `input` and `other` comply with the implicit type conversion rules to make the data types
+              consistent.
+            - When the inputs are two tensors, dtypes of them cannot be bool at the same time.
+            - When the inputs are one tensor and one scalar, the scalar could only be a constant.
+            - Shapes of them are supposed to be broadcast.
+            - If one of the elements being compared is a NaN, then that element is returned.
+
+        Args:
+            input (Union[Tensor, Number, bool]): The first input.
+            other (Union[Tensor, Number, bool]): The second input.
+    
+        Returns:
+            Tensor
+    
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+    
+        Examples:
+            >>> import mindspore
+            >>> # case 1 : same data type
+            >>> input = mindspore.tensor([1.0, 5.0, 3.0], mindspore.float32)
+            >>> other = mindspore.tensor([4.0, 2.0, 6.0], mindspore.float32)
+            >>> mindspore.ops.minimum(input, other)
+            Tensor(shape=[3], dtype=Float32, value= [ 1.00000000e+00,  2.00000000e+00,  3.00000000e+00])
+            >>>
+            >>> # case 2 : the data type is the one with higher precision or higher digits among the two inputs.
+            >>> input = mindspore.tensor([1.0, 5.0, 3.0], mindspore.int64)
+            >>> other = mindspore.tensor([4.0, 2.0, 6.0], mindspore.float64)
+            >>> mindspore.ops.minimum(input, other)
+            Tensor(shape=[3], dtype=Float64, value= [ 1.00000000e+00,  2.00000000e+00,  3.00000000e+00])

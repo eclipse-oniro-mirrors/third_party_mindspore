@@ -1,0 +1,34 @@
+copy_:
+  description: |
+    copy_(src, non_blocking=False) -> Tensor
+
+    Copies the elements from `src` into `self` tensor and returns `self`.
+
+    .. warning::
+        If Copying is performed between Ascend and Ascend, the `src` tensor must be broadcastable with the `self` tensor,
+        and they can be of different data types.
+        Copying is performed between CPU and Ascend or CPU and CPU are only supported if `self` and `src` have
+        the same shape and data type and they are all contiguous.
+
+    Args:
+        src (Tensor): the source tensor to copy from.
+        non_blocking (bool, optional): If ``True`` and copying is performed between CPU and Ascend, and `self` and `src`
+            have the same shape and data type and are contiguous. The copy may occur asynchronously with respect to the
+            host. For other cases, this argument has no effect. Default: ``False``.
+
+    Returns:
+        Return self Tensor.
+
+    Supported Platforms:
+        ``Ascend``
+
+    Examples:
+        >>> import numpy as np
+        >>> from mindspore import Tensor
+        >>> a = Tensor(np.ones((3, 3)).astype("float32"))
+        >>> b = Tensor(np.zeros((3, 3)).astype("float32"))
+        >>> a.copy_(b)
+        >>> print(a)
+        [[0. 0. 0.]
+         [0. 0. 0.]
+         [0. 0. 0.]]

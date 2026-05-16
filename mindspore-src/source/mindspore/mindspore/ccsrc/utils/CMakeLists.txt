@@ -1,0 +1,11 @@
+file(GLOB_RECURSE _UTILS_SRC_LIST ./*.cc)
+file(STRINGS "${TOP_DIR}/version.txt" VERSION)
+add_definitions(-DVERSION=\"${VERSION}\")
+
+if(CMAKE_SYSTEM_NAME MATCHES "Windows")
+    file(GLOB_RECURSE _UTILS_SIGNAL_SRC_FILES ./signal_util.cc)
+    list(REMOVE_ITEM _UTILS_SRC_LIST ${_UTILS_SIGNAL_SRC_FILES})
+endif()
+
+set_property(SOURCE ${_UTILS_SRC_LIST} PROPERTY COMPILE_DEFINITIONS SUBMODULE_ID=mindspore::SubModuleId::SM_UTILS)
+add_library(_mindspore_utils_obj OBJECT ${_UTILS_SRC_LIST})

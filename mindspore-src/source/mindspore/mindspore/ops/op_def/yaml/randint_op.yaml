@@ -1,0 +1,28 @@
+#operator randint
+randint:
+    args:
+        low:
+            dtype: int
+        high:
+            dtype: int
+        shape:
+            dtype: tuple[int]
+            type_cast: list[int]
+        seed:
+            dtype: tensor
+        offset:
+            dtype: tensor
+        dtype:
+            dtype: TypeId
+            arg_handler: dtype_to_type_id
+            default: None
+    returns:
+        output:
+            dtype: tensor
+    class:
+        name: RandInt
+    function:
+        disable: True
+    dispatch:
+        enable: True
+        Ascend: RandIntAscend

@@ -1,0 +1,5 @@
+clip:
+  description: |
+    clip(min=None, max=None) -> Tensor
+    
+    Alias for :func:`mindspore.Tensor.clamp`.

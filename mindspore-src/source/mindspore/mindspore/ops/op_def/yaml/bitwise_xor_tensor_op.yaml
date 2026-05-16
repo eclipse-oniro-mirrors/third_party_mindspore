@@ -1,0 +1,14 @@
+#operator bitwise_xor_tensor
+bitwise_xor_tensor:
+    args:
+        input:
+            dtype: tensor
+        other:
+            dtype: tensor
+    returns:
+        output:
+            dtype: tensor
+    function:
+        disable: True
+    dispatch:
+        enable: True

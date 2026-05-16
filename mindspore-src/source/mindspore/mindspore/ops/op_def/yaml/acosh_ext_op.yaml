@@ -1,0 +1,13 @@
+#operator acosh_ext
+acosh_ext:
+    args:
+        input:
+            dtype: tensor
+    returns:
+        output: 
+            dtype: tensor
+    class:
+        name: AcoshExt
+    dispatch:
+        enable: True
+        GPU: None

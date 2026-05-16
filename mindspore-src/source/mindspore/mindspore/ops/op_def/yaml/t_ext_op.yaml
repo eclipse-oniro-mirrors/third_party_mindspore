@@ -1,0 +1,16 @@
+#operator t_ext
+t_ext:
+  args:
+    input:
+      dtype: tensor
+  returns:
+    output:
+      dtype: tensor
+  class:
+    name: TExt
+  view: True
+  bprop_expander: False
+  dispatch:
+    enable: True
+    Ascend: TExtAscend
+    GPU: None

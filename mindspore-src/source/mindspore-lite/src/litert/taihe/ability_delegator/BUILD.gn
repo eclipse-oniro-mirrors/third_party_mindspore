@@ -1,0 +1,88 @@
+# Copyright 2025 Huawei Technologies Co., Ltd
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("//build/config/components/ets_frontend/ets2abc_config.gni")
+import("//build/ohos.gni")
+import("//build/ohos/taihe_idl/taihe.gni")
+
+declare_args() {
+  MINDSPORE_ROOT_ANI = "//third_party/mindspore/mindspore-src"
+}
+
+copy_taihe_idl("copy_mindsproreAni") {
+  sources = [ "${MINDSPORE_ROOT_ANI}/source/mindspore-lite/src/litert/taihe/ability_delegator/idl/ohos.ai.mindSporeLite.taihe" ]
+}
+subsystem_name = "thirdparty"
+part_name = "mindspore"
+taihe_generated_file_path = "$taihe_file_path/out/$subsystem_name/$part_name"
+ohos_taihe("run_taihe_ms") {
+  taihe_generated_file_path = "$taihe_generated_file_path"
+  deps = [ ":copy_mindsproreAni" ]
+  outputs = [
+    "$taihe_generated_file_path/src/ohos.ai.mindSporeLite.ani.cpp",
+    "$taihe_generated_file_path/src/ohos.ai.mindSporeLite.abi.c",
+  ]
+}
+
+taihe_shared_library("mindspore_ani_taihe_native") {
+  taihe_generated_file_path = "$taihe_generated_file_path"
+  part_name = "$part_name"
+  subsystem_name = "$subsystem_name"
+  sources = get_target_outputs(":run_taihe_ms")
+  include_dirs = [
+    "${MINDSPORE_ROOT_ANI}/source/",
+    "${MINDSPORE_ROOT_ANI}/source/include/api",
+    "${MINDSPORE_ROOT_ANI}/source/mindspore/mindspore/core",
+    "${MINDSPORE_ROOT_ANI}/source/mindspore/mindspore/core/include",
+    "${MINDSPORE_ROOT_ANI}/source/mindspore-lite",
+    "${MINDSPORE_ROOT_ANI}/source/mindspore-lite/src/litert/taihe/ability_delegator/include"
+  ]
+  sources += [
+    "src/ani_constructor.cpp",
+    "src/ohos.ai.mindSporeLite.impl.cpp",
+    "src/ms_utils_ani.cpp",
+  ]
+  deps = [
+    ":run_taihe_ms",
+    "${MINDSPORE_ROOT_ANI}/source/mindspore-lite:mindspore_ndk",
+    "${MINDSPORE_ROOT_ANI}/source/mindspore-lite:mindspore_lib"
+  ]
+  cflags_cc = [
+    "-Os",
+    "-flto=thin"
+  ]
+}
+
+generate_static_abc("mindspore_ani_abc") {
+  base_url = "$taihe_generated_file_path"
+  files = [ "$taihe_generated_file_path/@ohos.ai.mindSporeLite.ets" ]
+  is_boot_abc = "True"
+  device_dst_file = "/system/framework/mindspore_ani_abc.abc"
+  dependencies = [ ":run_taihe_ms" ]
+
+}
+
+ohos_prebuilt_etc("mindspore_ani_etc") {
+  source = "$target_out_dir/mindspore_ani_abc.abc"           
+  module_install_dir = "framework"
+  part_name = "$part_name"
+  subsystem_name = "$subsystem_name"
+  deps = [ ":mindspore_ani_abc" ]
+}
+
+group("mindspore_taihe") {
+  deps = [
+    ":mindspore_ani_etc",
+    ":mindspore_ani_taihe_native",
+  ]
+}

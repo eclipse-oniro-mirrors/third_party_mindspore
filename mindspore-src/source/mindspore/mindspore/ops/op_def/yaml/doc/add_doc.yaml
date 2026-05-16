@@ -1,0 +1,42 @@
+add:
+    description: |
+        Compute the element-wise sum of the two input tensors.
+
+        .. math::
+
+            out_{i} = input_{i} + other_{i}
+
+        Note:
+            - The two inputs can not be bool type at the same time,
+              [True, Tensor(True), Tensor(np.array([True]))] are all considered bool type.
+            - Support broadcast, support implicit type conversion and type promotion.
+            - When the input is a tensor, the dimension should be greater than or equal to 1.
+
+        Args:
+            input (Union[Tensor, number.Number, bool]): The first input tensor.
+            other (Union[Tensor, number.Number, bool]): The second input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> # case 1: x and y are both tensor.
+            >>> x = mindspore.tensor([1., 2., 3.])
+            >>> y = mindspore.tensor([4., 5., 6.])
+            >>> output = mindspore.ops.add(x, y)
+            >>> print(output)
+            [5. 7. 9.]
+            >>> # case 2: x is a scalar and y is a tensor
+            >>> x = mindspore.tensor(1, mindspore.int32)
+            >>> y = mindspore.tensor([4., 5., 6.])
+            >>> output = mindspore.ops.add(x, y)
+            >>> print(output)
+            [5. 6. 7.]
+            >>> # the data type of x is int32, the data type of y is float32,
+            >>> # and the output is the data format of higher precision float32.
+            >>> print(output.dtype)
+            Float32

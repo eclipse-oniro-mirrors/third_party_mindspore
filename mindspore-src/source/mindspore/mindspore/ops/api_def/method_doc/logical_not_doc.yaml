@@ -1,0 +1,6 @@
+logical_not:
+  description: |
+    logical_not() -> Tensor
+
+    For details, please refer to :func:`mindspore.ops.logical_not`.
+

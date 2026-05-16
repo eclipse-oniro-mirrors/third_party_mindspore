@@ -1,0 +1,36 @@
+reduce_all:
+    description: |
+        Tests if all element in `input` evaluates to `True` along the given axes.
+
+        Args:
+            input (Tensor): The input Tensor.
+            axis (Union[int, tuple(int), list(int), Tensor], optional): The dimensions to reduce. If ``None`` ,
+                all dimensions are reduced. Default ``None`` .
+            keep_dims (bool, optional): Whether the output tensor has dim retained or not. Default ``False`` .
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor([[True, False], [True, True]])
+            >>>
+            >>> # case 1:  By default, mindspore.ops.all tests along all the axes.
+            >>> mindspore.ops.all(input)
+            Tensor(shape=[], dtype=Bool, value= False)
+            >>> 
+            >>> # case 2: Reduces a dimension along axis 1, with keep_dims False.
+            >>> mindspore.ops.all(input, axis=1)
+            Tensor(shape=[2], dtype=Bool, value= [False,  True])
+            >>>
+            >>> # case 3: Reduces a dimension along axis (0,1), with keep_dims False.
+            >>> mindspore.ops.all(input, axis=(0,1))
+            Tensor(shape=[], dtype=Bool, value= False)
+            >>>
+            >>> # case 4: Reduces a dimension along axis [0,1], with keep_dims True.
+            >>> mindspore.ops.all(input, axis=[0,1], keep_dims=True)
+            Tensor(shape=[1, 1], dtype=Bool, value=
+            [[False]])

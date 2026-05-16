@@ -1,0 +1,5 @@
+floor:
+  description: |
+    floor() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.floor`.

@@ -1,0 +1,27 @@
+#operator randint_like
+randint_like:
+    args:
+        input:
+            dtype: tensor
+        low:
+            dtype: int
+        high:
+            dtype: int
+        seed:
+            dtype: tensor
+        offset:
+            dtype: tensor
+        dtype:
+            dtype: TypeId
+            arg_handler: dtype_to_type_id
+            default: None
+    returns:
+        output:
+            dtype: tensor
+    class:
+        name: RandIntLike
+    function:
+        disable: True
+    dispatch:
+        enable: True
+        Ascend: RandIntLikeAscend

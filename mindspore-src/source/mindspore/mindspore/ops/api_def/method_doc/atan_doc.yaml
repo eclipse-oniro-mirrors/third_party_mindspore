@@ -1,0 +1,5 @@
+atan:
+  description: |
+    atan() -> Tensor
+  
+    For details, please refer to :func:`mindspore.ops.atan`.

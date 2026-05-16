@@ -1,0 +1,23 @@
+angle:
+    description: |
+        Returns the element-wise angle of the given complex tensor.
+
+        .. math::
+            output_i = angle(input_i)
+        
+        Args:
+          input (Tensor):
+            The input tensor.
+
+        Returns:
+          Tensor
+
+        Supported Platforms:
+          ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+          >>> import mindspore
+          >>> input = mindspore.tensor([-1 + 1j, -2 + 2j, 3 - 3j], mindspore.complex64)
+          >>> output = mindspore.ops.angle(input)*180/3.14159
+          >>> print(output)
+          [135.0001  135.0001  -45.00004]

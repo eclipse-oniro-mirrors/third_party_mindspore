@@ -1,0 +1,23 @@
+assign:
+    description: |
+        Assigns a parameter or tensor with a value.
+
+        Support implicit type conversion and type promotion.
+
+        Args:
+            variable (Union[Parameter, Tensor]): The input parameter or tensor.
+            value (Tensor): The value to be assigned.
+    
+        Returns:
+            Tensor
+    
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+    
+        Examples:
+            >>> import mindspore
+            >>> value = mindspore.tensor([2.0], mindspore.float32)
+            >>> variable = mindspore.Parameter(mindspore.tensor([1.0], mindspore.float32), name="variable")
+            >>> mindspore.ops.assign(variable, value)
+            >>> print(variable.asnumpy())
+            [2.]

@@ -1,0 +1,14 @@
+#operator hsigmoid
+hsigmoid:
+    args:
+        input:
+            dtype: tensor
+    returns:
+        output: 
+            dtype: tensor
+    class:
+        name: HSigmoid
+    function:
+        name: hardsigmoid
+    dispatch:
+        enable: True

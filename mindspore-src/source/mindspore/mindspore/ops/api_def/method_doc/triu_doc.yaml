@@ -1,0 +1,5 @@
+triu:
+  description: |
+    triu(diagonal=0) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.triu`.

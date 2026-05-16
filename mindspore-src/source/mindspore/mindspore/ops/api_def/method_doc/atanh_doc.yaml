@@ -1,0 +1,5 @@
+atanh:
+  description: |
+    atanh() ->Tensor
+
+    For details, please refer to :func:`mindspore.ops.atanh`.

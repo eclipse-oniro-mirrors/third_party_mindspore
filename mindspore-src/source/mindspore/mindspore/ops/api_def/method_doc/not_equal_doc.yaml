@@ -1,0 +1,5 @@
+not_equal:
+  description: |
+    not_equal(other) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.ne`.

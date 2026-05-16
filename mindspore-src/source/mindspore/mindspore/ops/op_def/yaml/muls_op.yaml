@@ -1,0 +1,13 @@
+#operator muls
+muls:
+    args:
+        input:
+            dtype: tensor
+        other:
+            dtype: number
+    returns:
+        output: 
+            dtype: tensor
+    dispatch:
+        enable: True
+        Ascend: MulsAscend

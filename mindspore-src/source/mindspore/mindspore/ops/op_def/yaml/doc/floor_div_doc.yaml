@@ -1,0 +1,47 @@
+floor_div:
+  description: |
+    Compute element-wise division of `input` by `other` and floor the result.
+
+    If `input` and `other` have different data types, the implicit type conversion rules are followed.
+    Inputs must be two tensors or one tensor and one scalar.
+    When the inputs are two tensors, their shapes must be broadcastable, and their data types cannot both be bool
+    simultaneously.
+
+    .. math::
+        out_{i} = \text{floor}( \frac{input_i}{other_i})
+
+    .. warning::
+        This is an experimental API that is subject to change or deletion.
+
+    Args:
+        input (Union[Tensor, Number, bool]): The first input tensor.
+        other (Union[Tensor, Number, bool]): The second input tensor.
+
+    Returns:
+        Tensor
+
+    Supported Platforms:
+        ``Ascend`` ``GPU`` ``CPU``
+
+    Examples:
+        >>> import mindspore
+        >>> # case 1: Two tensors with boolean and integer data type.
+        >>> input = mindspore.tensor([True, True, False])
+        >>> other = mindspore.tensor([1, 2, 4])
+        >>> output = mindspore.ops.floor_divide(input, other)
+        >>> print(output)
+        [1 0 0]
+        >>>
+        >>> # case 2: One tensor and one scalar.
+        >>> input = mindspore.tensor([1, 2, 4])
+        >>> other = mindspore.tensor(1.5)
+        >>> output = mindspore.ops.floor_divide(input, other)
+        >>> print(output)
+        [0. 1. 2.]
+        >>>
+        >>> # case 3: When inputs have different data types, type promotion rules are followed.
+        >>> input = mindspore.tensor([1, 2, 4], mindspore.int32)
+        >>> other = mindspore.tensor([1.1, 2.5, -1.5], mindspore.float32)
+        >>> output = mindspore.ops.floor_divide(input, other)
+        >>> print(output)
+        [ 0.  0. -3.]

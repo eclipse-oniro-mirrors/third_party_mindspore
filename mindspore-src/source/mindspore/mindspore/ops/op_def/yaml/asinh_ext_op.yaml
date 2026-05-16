@@ -1,0 +1,13 @@
+#operator asinh_ext
+asinh_ext:
+    args:
+        input:
+            dtype: tensor
+    returns:
+        output: 
+            dtype: tensor
+    class:
+        name: AsinhExt
+    dispatch:
+        enable: True
+        GPU: None

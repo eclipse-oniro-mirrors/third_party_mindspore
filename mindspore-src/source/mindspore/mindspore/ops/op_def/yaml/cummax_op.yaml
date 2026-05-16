@@ -1,0 +1,16 @@
+#operator cummax
+cummax:
+  args:
+    input:
+      dtype: tensor
+    axis:
+      dtype: int
+      prim_init: True
+  returns:
+    values:
+      dtype: tensor
+    indices:
+      dtype: tensor
+  dispatch:
+    enable: True
+    Ascend: CumMaxAscend

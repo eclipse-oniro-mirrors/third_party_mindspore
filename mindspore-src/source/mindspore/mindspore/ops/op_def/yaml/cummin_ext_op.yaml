@@ -1,0 +1,16 @@
+#operator cummin_ext
+cummin_ext:
+  args:
+    input:
+      dtype: tensor
+    dim:
+      dtype: int
+  returns:
+    values:
+      dtype: tensor
+    indices:
+      dtype: tensor
+  dispatch:
+    enable: True
+    Ascend: CumminExtAscend
+    GPU: None

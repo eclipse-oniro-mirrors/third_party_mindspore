@@ -1,0 +1,64 @@
+mindspore_lite
+==============
+
+The Python API only support cloud-side inference.
+
+Context
+--------
+
+.. autosummary::
+    :toctree: mindspore_lite
+    :nosignatures:
+    :template: classtemplate.rst
+
+    mindspore_lite.Context
+
+Converter
+---------
+
+.. autosummary::
+    :toctree: mindspore_lite
+    :nosignatures:
+    :template: classtemplate.rst
+
+    mindspore_lite.FmkType
+    mindspore_lite.Converter
+
+Model
+-----
+
+.. autosummary::
+    :toctree: mindspore_lite
+    :nosignatures:
+    :template: classtemplate.rst
+
+    mindspore_lite.Model
+    mindspore_lite.ModelExecutor
+    mindspore_lite.ModelGroup
+    mindspore_lite.ModelGroupFlag
+    mindspore_lite.ModelParallelRunner
+    mindspore_lite.ModelType
+    mindspore_lite.MultiModelRunner
+
+Tensor
+------
+
+.. autosummary::
+    :toctree: mindspore_lite
+    :nosignatures:
+    :template: classtemplate.rst
+
+    mindspore_lite.DataType
+    mindspore_lite.Format
+    mindspore_lite.Tensor
+    mindspore_lite.TensorMeta
+
+LiteInfer
+----------
+
+.. autosummary::
+    :toctree: mindspore_lite
+    :nosignatures:
+    :template: classtemplate.rst
+
+    mindspore_lite.LiteInfer

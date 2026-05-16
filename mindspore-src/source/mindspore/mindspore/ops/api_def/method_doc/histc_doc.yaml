@@ -1,0 +1,8 @@
+histc:
+  description: |
+    histc(bins=100, min=0, max=0) -> Tensor
+
+    For details, please refer to :func:`mindspore.ops.histc`.
+
+    Supported Platforms:
+        ``Ascend`` ``GPU`` ``CPU``

@@ -1,0 +1,5 @@
+expm1:
+    description: |
+        expm1() -> Tensor
+
+        For details, please refer to :func:`mindspore.ops.expm1`.

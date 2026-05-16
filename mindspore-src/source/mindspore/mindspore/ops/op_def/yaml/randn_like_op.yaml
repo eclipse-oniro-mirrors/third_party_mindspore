@@ -1,0 +1,21 @@
+#operator randn_like
+randn_like:
+    args:
+        input:
+            dtype: tensor
+        seed:
+            dtype: tensor
+        offset:
+            dtype: tensor
+        dtype:
+            dtype: TypeId
+            arg_handler: dtype_to_type_id
+            default: None
+    returns:
+        output:
+            dtype: tensor
+    function:
+        disable: True
+    dispatch:
+        enable: True
+        Ascend: RandnLikeAscend

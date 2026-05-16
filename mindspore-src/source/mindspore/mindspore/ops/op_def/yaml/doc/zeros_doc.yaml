@@ -1,0 +1,29 @@
+zeros:
+    description: |
+        Creates a tensor filled with value zeros.
+
+        .. warning::
+            For argument `size`, Tensor type input will be deprecated in the future version.
+
+        Args:
+            size (Union[tuple[int], list[int], int, Tensor]): The shape specified.
+            dtype (:class:`mindspore.dtype`, optional): The data type specified. Default: ``None`` .
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> mindspore.ops.zeros(4)
+            Tensor(shape=[4], dtype=Float32, value= [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00])
+            >>> mindspore.ops.zeros((2, 3))
+            Tensor(shape=[2, 3], dtype=Float32, value=
+            [[ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
+             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00]])
+            >>> mindspore.ops.zeros(mindspore.tensor([1, 2, 3]))
+            Tensor(shape=[1, 2, 3], dtype=Float32, value=
+            [[[ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
+              [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00]]])

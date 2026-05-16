@@ -1,0 +1,26 @@
+#operator inplace_index_put
+inplace_index_put:
+    args:
+        input:
+            dtype: tensor
+        indices:
+            dtype: tuple[tensor]
+            type_cast: list[tensor]
+        values:
+            dtype: tensor
+        accumulate:
+            dtype: bool
+            default: False
+    returns:
+        output:
+            dtype: tensor
+            inplace: input
+    args_signature:
+        rw_write: input
+    labels:
+        side_effect_mem: True
+    function:
+        name: index_put_
+    dispatch:
+        enable: True
+        Ascend: InplaceIndexPutAscend

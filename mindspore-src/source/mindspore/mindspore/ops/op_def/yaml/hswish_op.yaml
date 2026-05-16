@@ -1,0 +1,14 @@
+#operator hswish
+hswish:
+    args:
+        input:
+            dtype: tensor
+    returns:
+        output: 
+            dtype: tensor
+    class:
+        name: HSwish
+    function:
+        name: hardswish
+    dispatch:
+        enable: True

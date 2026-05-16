@@ -1,0 +1,32 @@
+#operator batch_norm_reduce_grad
+batch_norm_reduce_grad:
+  args:
+    dout:
+      dtype: tensor
+    input:
+      dtype: tensor
+    mean:
+      dtype: tensor
+    invstd:
+      dtype: tensor
+    weight:
+      dtype: tensor
+    input_g:
+      dtype: bool
+    weight_g:
+      dtype: bool
+    bias_g:
+      dtype: bool
+  returns:
+    sum_dy_out:
+      dtype: tensor
+    sum_dy_xmu_out:
+      dtype: tensor
+    grad_weight_out:
+      dtype: tensor
+    grad_bias_out:
+      dtype: tensor
+  function:
+    disable: True
+  dispatch:
+    enable: True

@@ -1,0 +1,29 @@
+#operator nllloss_2d_grad
+nllloss_2d_grad:
+    args:
+        loss_grad:
+            dtype: tensor
+        input:
+            dtype: tensor
+        target:
+            dtype: tensor
+        weight:
+            dtype: tensor
+        reduction:
+            dtype: int
+            arg_handler: str_to_enum
+        ignore_index:
+            dtype: int
+        total_weight:
+            dtype: tensor
+    returns:
+        out:
+            dtype: tensor
+    class:
+        name: NLLLoss2dGrad
+    function:
+        disable: True
+    dispatch:
+        enable: True
+        Ascend: NLLLoss2dGradAscend
+

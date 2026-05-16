@@ -1,0 +1,38 @@
+nan_to_num:
+    description: |
+        Replace the `NaN`, positive infinity and negative infinity values in `input` with the
+        specified values in `nan`, `posinf` and `neginf` respectively.
+
+        .. warning::
+            For Ascend, it is only supported on Atlas A2 Training Series Products.
+            This is an experimental API that is subject to change or deletion.
+
+        Args:
+            input (Tensor): The input tensor.
+            nan (number, optional): The replace value of `NaN`. Default ``None``.
+            posinf (number, optional): the value to replace `posinf` values with. Default ``None``,
+                replacing `posinf` with the maximum value supported by the data type of `input`.
+            neginf (number, optional): the value to replace `neginf` values with. Default ``None``,
+                replacing `neginf` with the minimum value supported by the data type of `input`.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor([float('nan'), float('inf'), -float('inf'), 5.0], mindspore.float32)
+            >>> output = mindspore.ops.nan_to_num(input)
+            >>> print(output)
+            [ 0.0000000e+00  3.4028235e+38 -3.4028235e+38  5.0000000e+00]
+            >>> output = mindspore.ops.nan_to_num(input, 1.0)
+            >>> print(output)
+            [ 1.0000000e+00  3.4028235e+38 -3.4028235e+38  5.0000000e+00]
+            >>> output = mindspore.ops.nan_to_num(input, 1.0, 2.0)
+            >>> print(output)
+            [ 1.0000000e+00  2.0000000e+00 -3.4028235e+38  5.0000000e+00]
+            >>> output = mindspore.ops.nan_to_num(input, 1.0, 2.0, 3.0)
+            >>> print(output)
+            [1.  2.  3.  5.0]

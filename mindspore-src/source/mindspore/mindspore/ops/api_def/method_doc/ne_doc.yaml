@@ -1,0 +1,5 @@
+ne:
+  description: |
+    ne(other) -> Tensor
+    
+    Alias for :func:`mindspore.Tensor.not_equal`.

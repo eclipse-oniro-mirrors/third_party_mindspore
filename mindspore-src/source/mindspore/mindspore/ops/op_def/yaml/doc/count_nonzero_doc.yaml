@@ -1,0 +1,43 @@
+count_nonzero:
+    description: |
+        Count the number of non-zero elements in the Tensor `input` on a given dimension `dim`. If no dim is specified then all non-zeros in the tensor are counted.
+
+        Args:
+            input (Tensor): Input data is used to count non-zero numbers. With shape
+                :math:`(*)` where :math:`*` means, any number of additional dimensions.
+            dim (Union[None, int, tuple(int), list(int)], optional): Count the dimension of the number of non-zero elements.
+                Default value: ``None``, which indicates that the number of non-zero elements is calculated.
+                If `dim` is ``None``, all elements in the tensor are summed up.
+
+        Returns:
+            Tensor, number of nonzero element across dim specified by `dim`.
+
+        Raises:
+            TypeError: If `input` is not tensor.
+            TypeError: If `dim` is not int, tuple(int), list(int) or None.
+            ValueError: If any value in `dim` is not in range :math:`[-input.ndim, input.ndim)`.
+
+        Supported Platforms:
+            ``Ascend``
+
+        Examples:
+            >>> from mindspore import Tensor, ops
+            >>> import numpy as np
+            >>> import mindspore
+            >>> # case 1: each value specified.
+            >>> x = Tensor(np.array([[0, 1, 0], [1, 1, 0]]).astype(np.float32))
+            >>> nonzero_num = ops.count_nonzero(input=x, dim=[0, 1])
+            >>> print(nonzero_num)
+            3
+            >>> # case 2: all value is default.
+            >>> nonzero_num = ops.count_nonzero(input=x)
+            >>> print(nonzero_num)
+            3
+            >>> # case 3: dim value was specified 0.
+            >>> nonzero_num = ops.count_nonzero(input=x, dim=[0,])
+            >>> print(nonzero_num)
+            [1 2 0]
+            >>> # case 4: dim value was specified 1.
+            >>> nonzero_num = ops.count_nonzero(input=x, dim=[1,])
+            >>> print(nonzero_num)
+            [1 2]

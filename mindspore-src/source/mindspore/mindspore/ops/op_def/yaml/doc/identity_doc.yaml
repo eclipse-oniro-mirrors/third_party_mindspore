@@ -1,0 +1,20 @@
+identity:
+    description: |
+        Return a deepcopy of input tensor.
+
+        Args:
+            input_x (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor([[0, 1], [2, 1]], dtype=mindspore.int32)
+            >>> output = mindspore.ops.deepcopy(input)
+            >>> print(output)
+            [[0 1]
+            [2 1]]

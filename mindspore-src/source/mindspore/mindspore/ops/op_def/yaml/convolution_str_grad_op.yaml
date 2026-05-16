@@ -1,0 +1,47 @@
+#operator convolution_str_grad
+convolution_str_grad:
+  args:
+    dout:
+      dtype: tensor
+    input:
+      dtype: tensor
+    weight:
+      dtype: tensor
+    bias:
+      dtype: tensor
+      default: None
+    stride:
+      dtype: tuple[int]
+      default: 1
+    padding:
+      dtype: int
+      default: "'valid'"
+      arg_handler: str_to_enum
+    dilation:
+      dtype: tuple[int]
+      default: 1
+    transposed:
+      dtype: bool
+      default: False
+    output_padding:
+      dtype: tuple[int]
+      default: 0
+    groups:
+      dtype: int
+      default: 1
+    output_mask:
+      dtype: tuple[int]
+      default: ()
+  returns:
+    dx:
+      dtype: tensor
+    dw:
+      dtype: tensor
+    dbias:
+      dtype: tensor
+  class:
+      name: ConvolutionStrGrad
+  function:
+      disable: True
+  dispatch:
+    enable: True

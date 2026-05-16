@@ -1,0 +1,5 @@
+sinh:
+  description: |
+    sinh() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.sinh`.

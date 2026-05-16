@@ -1,0 +1,36 @@
+searchsorted:
+    description: |
+        Return the position indices where the elements can be inserted into the input tensor to maintain the increasing
+        order of the input tensor.
+
+        .. warning::
+            This is an experimental API that is subject to change or deletion.
+        
+        Refer to :func:`mindspore.ops.searchsorted` for more details.
+
+        Args:
+            dtype (mindspore.dtype, optional): The specified type of output tensor. Optional values are: ``mstype.int32`` and 
+                ``mstype.int64``. Default ``mstype.int64``.
+            right (bool, optional): Search Strategy. If ``True`` , return the last suitable index found;
+                if ``False`` , return the first such index. Default ``False`` .
+
+        Inputs:
+            - **sorted_sequence** (Tensor) - The input tensor. If `sorter` not provided, it must contain a increasing sequence
+              on the innermost dimension.
+            - **values** (Tensor) - The value that need to be inserted.
+            - **sorter** (Tensor, optional) - An index sequence sorted in ascending order along the innermost dimension of
+              `sorted_sequence` , which is used together with the unsorted `sorted_sequence` . CPU and GPU only support
+              ``None``. Default ``None`` .
+
+        Outputs:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> sorted_sequence = mindspore.tensor([1, 2, 2, 3, 4, 5, 5], mindspore.float32)
+            >>> values = mindspore.tensor([2], mindspore.float32)
+            >>> mindspore.ops.SearchSorted()(sorted_sequence, values)
+            Tensor(shape=[1], dtype=Int64, value= [1])

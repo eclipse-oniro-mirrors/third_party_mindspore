@@ -1,0 +1,11 @@
+if(GPU_BACKEND_CUDA)
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugin/gpu)
+    add_subdirectory(plugin/gpu)
+    enable_directory_when_only_build_plugins(plugin/gpu)
+endif()
+
+if(GPU_BACKEND_ROCM)
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugin/device/amd)
+    add_subdirectory(plugin/device/amd)
+    enable_directory_when_only_build_plugins(plugin/device/amd)
+endif()

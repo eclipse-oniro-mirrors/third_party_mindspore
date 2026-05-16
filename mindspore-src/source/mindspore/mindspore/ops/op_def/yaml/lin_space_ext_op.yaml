@@ -1,0 +1,22 @@
+#operator lin_space_ext
+lin_space_ext:
+  args:
+    start:
+      dtype: number
+    end:
+      dtype: number
+    steps:
+      dtype: int
+    dtype:
+      dtype: TypeId
+      arg_handler: dtype_to_type_id
+      default: None
+  returns:
+    output:
+      dtype: tensor
+  function:
+    disable: True
+  dispatch:
+    enable: True
+    Ascend: LinSpaceExtAscend
+    GPU: None

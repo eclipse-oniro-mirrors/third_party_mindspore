@@ -1,0 +1,8 @@
+t:
+  description: |
+    Transpose `self` .
+
+    For details, please refer to :func:`mindspore.ops.t`.
+
+    Supported Platforms:
+        ``Ascend``

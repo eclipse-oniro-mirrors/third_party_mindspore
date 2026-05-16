@@ -1,0 +1,22 @@
+#operator inplace_div
+inplace_div:
+    args:
+        input:
+            dtype: tensor
+        other:
+            dtype: tensor
+    args_signature:
+        rw_write: input
+    returns:
+        output:
+            dtype: tensor
+            inplace: input
+    labels:
+        side_effect_mem: True
+    class:
+        name: InplaceDiv
+    function:
+        name: div_tensor_
+    dispatch:
+        enable: True
+        Ascend: InplaceDivAscend

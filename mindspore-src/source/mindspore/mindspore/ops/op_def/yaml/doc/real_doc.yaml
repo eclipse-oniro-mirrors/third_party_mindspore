@@ -1,0 +1,19 @@
+real:
+    description: |
+        Return a tensor that is the real part of the input. If input is real, it is returned unchanged.
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor(1.3+0.4j, mindspore.complex64)
+            >>> output = mindspore.ops.real(input)
+            >>> print(output)
+            1.3

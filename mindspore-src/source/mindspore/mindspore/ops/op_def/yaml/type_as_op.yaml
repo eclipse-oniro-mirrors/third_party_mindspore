@@ -1,0 +1,16 @@
+#operator type_as
+type_as:
+    args:
+        input:
+            dtype: tensor
+        other:
+            dtype: tensor
+    returns:
+        output: 
+            dtype: tensor
+    class:
+        disable: True
+    dispatch:
+        enable: True
+        Ascend: TypeAsAscend
+        GPU: None

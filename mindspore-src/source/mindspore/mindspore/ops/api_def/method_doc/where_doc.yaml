@@ -1,0 +1,6 @@
+where:
+  description: |
+    where(condition, y) -> Tensor
+
+    For details, please refer to :func:`mindspore.ops.where`.
+

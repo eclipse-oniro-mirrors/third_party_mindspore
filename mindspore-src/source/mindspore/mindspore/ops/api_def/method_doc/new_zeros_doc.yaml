@@ -1,0 +1,30 @@
+new_zeros:
+    description: |
+        new_zeros(size, dtype=None) -> Tensor
+
+        Return a tensor of `size` filled with zeros.
+
+        Args:
+            size (Union[int, tuple(int), list(int)]): An int, list or tuple of integers defining the output shape.
+            dtype (:class:`mindspore.dtype`, optional): The desired dtype of the output tensor. If None, the returned
+                tensor has the same dtype as `self`. Default: ``None``.
+
+        Returns:
+            Tensor, the shape and dtype is defined above and filled with zeros.
+
+        Raises:
+            TypeError: If `size` is neither an int nor a tuple/list of int.
+            TypeError: If `dtype` is not a MindSpore dtype.
+            ValueError: If `size` contains negative values.
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> from mindspore import Tensor
+            >>> x = Tensor((), mindspore.int32)
+            >>> x.new_zeros((2, 3))
+            Tensor(shape=[2, 3], dtype=Int32, value=
+            [[0, 0, 0],
+             [0, 0, 0]])

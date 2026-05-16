@@ -1,0 +1,20 @@
+#operator dense
+dense:
+  args:
+    input:
+      dtype: tensor
+    weight:
+      dtype: tensor
+    bias:
+      dtype: tensor
+      default: None
+  returns:
+    output:
+      dtype: tensor
+  # enable this when addmm bprop expander is ready.
+  # bprop_expander: False
+  dispatch:
+    enable: True
+    Ascend: DenseAscend
+    GPU: DenseGPU
+    CPU: DenseCPU

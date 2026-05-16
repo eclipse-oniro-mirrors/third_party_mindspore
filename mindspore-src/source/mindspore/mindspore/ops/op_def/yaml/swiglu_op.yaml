@@ -1,0 +1,14 @@
+#operator Swiglu
+swiglu:
+  args:
+    input:
+      dtype: tensor
+    dim:
+        dtype: int
+        default: -1
+  returns:
+    output:
+      dtype: tensor
+  dispatch:
+    enable: True
+    GPU: None

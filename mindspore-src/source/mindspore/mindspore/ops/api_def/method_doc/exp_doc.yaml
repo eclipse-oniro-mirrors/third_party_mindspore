@@ -1,0 +1,5 @@
+exp:
+    description: |
+        exp() -> Tensor
+
+        For details, please refer to :func:`mindspore.ops.exp`.

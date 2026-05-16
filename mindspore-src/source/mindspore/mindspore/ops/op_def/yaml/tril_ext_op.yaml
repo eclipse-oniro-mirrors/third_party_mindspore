@@ -1,0 +1,15 @@
+#operator tril_ext
+tril_ext:
+  args:
+    input:
+      dtype: tensor
+    diagonal:
+      dtype: int
+      type_cast: tensor
+      default: 0
+  returns:
+    output:
+      dtype: tensor
+  dispatch:
+    enable: True
+    GPU: None

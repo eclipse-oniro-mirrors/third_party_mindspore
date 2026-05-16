@@ -1,0 +1,22 @@
+asin:
+    description: |
+        Computes arcsine of input tensors element-wise.
+
+        .. math::
+
+            out_i = \sin^{-1}(input_i)
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> output = mindspore.ops.asin(mindspore.tensor([0.74, 0.04, 0.30, 0.56]))
+            >>> print(output)
+            [0.8330704  0.04001067  0.30469266  0.5943858 ]

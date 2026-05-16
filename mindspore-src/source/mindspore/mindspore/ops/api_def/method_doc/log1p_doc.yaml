@@ -1,0 +1,5 @@
+log1p:
+    description: |
+        log1p() -> Tensor
+
+        For details, please refer to :func:`mindspore.ops.log1p`.

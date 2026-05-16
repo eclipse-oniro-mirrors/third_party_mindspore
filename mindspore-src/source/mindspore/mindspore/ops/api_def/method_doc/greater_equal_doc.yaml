@@ -1,0 +1,5 @@
+greater_equal:
+  description: |
+    greater_equal(other) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.greater_equal`.

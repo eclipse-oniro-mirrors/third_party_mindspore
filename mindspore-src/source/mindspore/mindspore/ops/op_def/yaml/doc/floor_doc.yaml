@@ -1,0 +1,23 @@
+floor:
+    description: |
+        Rounds a tensor down to the closest integer element-wise.
+
+        .. math::
+
+            out_i = \lfloor input_i \rfloor
+
+        Args:
+            input (Tensor): The input tensor. 
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor(([1.1, 2.5, -1.5]))
+            >>> output = mindspore.ops.floor(input)
+            >>> print(output)
+            [ 1.  2. -2.]

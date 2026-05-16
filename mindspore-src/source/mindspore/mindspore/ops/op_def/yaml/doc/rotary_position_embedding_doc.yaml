@@ -1,0 +1,74 @@
+rotary_position_embedding:
+    description: |
+        Implements the Rotary Position Embedding algorithm.
+        Refer to paper `Enhanced Transformer with Rotary Position Embedding <https://arxiv.org/pdf/2104.09864.pdf>`_.
+
+        .. warning::
+            This is an experimental API that is subject to change or deletion.
+
+        Args:
+            x (Tensor): 4D tensor, with float16, bfloat16 or float32 data type.
+            cos (Tensor): 4D constant, has the same type as `x` , in range of [-1, 1].
+            sin (Tensor): Same with `cos` .
+            mode (int): An optional attribute. Used to select a calculation mode. 0: rotate_half(GPT-NeoX style); 1: rotate_interleaved(GPT-J style). Defaults to ``0`` .
+
+        .. list-table:: Config layout constraints
+            :widths: 5 20 20
+            :header-rows: 1
+
+            * - Args
+              - RotateHalf(mode:0)
+              - RotateInterleaved(mode:1)
+            * - x
+              - Supported layout:
+
+                11SD, B1SD, BNSD; D < 896 and D is an Even. B, N < 1000;
+
+              - Supported layout: 11SD, B1SD, BNSD;
+
+                D < 896 and D is an Even.
+
+                B, N < 1000;
+            * - cos
+              - Support layout for different values of `x`:
+
+                `x` is BNSD: 11SD, B1SD, BNSD;
+
+                `x` is BSND: 1S1D, BS1D, BSND;
+
+                `x` is SBND: S11D, SB1D, SBND
+              - Support layout for different values of `x`:
+
+                `x` is BNSD: 11SD;
+
+                `x` is BSND: 1S1D;
+
+                `x` is SBND: S11D
+            * - sin
+              - Same with `cos` .
+              - Same with `cos` .
+
+        .. note::
+            When the layout is BNSD, B * N > 8S and D is 32-bytes alignment, the performance is poor. Therefore, this interface cannot be called.
+
+        Returns:
+            Tensor, has the same dtype and shape as the `x`.
+
+        Raises:
+            TypeError: If `x` is not a Tensor.
+            TypeError: If `cos` is not a Tensor.
+            TypeError: If `sin` is not a Tensor.
+            TypeError: If `mode` is not an int.
+
+        Supported Platforms:
+            ``Ascend``
+
+        Examples:
+            >>> import numpy as np
+            >>> from mindspore import Tensor, ops
+            >>> x = Tensor(np.random.uniform(-2, 2, (4, 8192, 4, 128)))
+            >>> cos = Tensor(np.random.uniform(-1, 1, (1, 8192, 1, 128)))
+            >>> sin = Tensor(np.random.uniform(-1, 1, (1, 8192, 1, 128)))
+            >>> output = ops.rotary_position_embedding(x, cos, sin, 0)
+            >>> print(output.shape)
+            (4, 8192, 4, 128)

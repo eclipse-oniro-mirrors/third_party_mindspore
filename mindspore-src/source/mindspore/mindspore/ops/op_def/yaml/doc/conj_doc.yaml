@@ -1,0 +1,24 @@
+conj:
+    description: |
+        Returns a tensor of complex numbers that are the complex conjugate of each element in input.
+        The complex numbers in input must be of the form a + bj, where a is the real part and b is the imaginary part.
+    
+        The complex conjugate returned by this operation is of the form a - bj.
+    
+        If `input` is real, it is returned unchanged.
+    
+        Args:
+            input (Tensor): The input tensor.
+    
+        Returns:
+            Tensor
+    
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+    
+        Examples:
+            >>> import mindspore
+            >>> x = mindspore.tensor(1.3+0.4j, mindspore.complex64)
+            >>> output = mindspore.ops.conj(x)
+            >>> output
+            Tensor(shape=[], dtype=Complex64, value= 1.3-0.4j)

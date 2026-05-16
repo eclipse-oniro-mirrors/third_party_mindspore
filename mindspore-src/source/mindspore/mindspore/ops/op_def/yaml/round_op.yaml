@@ -1,0 +1,18 @@
+#operator round
+round:
+  args:
+    input:
+      dtype: tensor
+    decimals:
+      dtype: int
+      type_cast: tensor
+      default: 0
+  returns:
+    output:
+      dtype: tensor
+  function:
+    disable: True
+  dispatch:
+    enable: True
+    Ascend: RoundAscend
+    CPU: RoundCPU

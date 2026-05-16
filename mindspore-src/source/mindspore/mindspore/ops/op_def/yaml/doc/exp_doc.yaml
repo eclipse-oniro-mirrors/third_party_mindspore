@@ -1,0 +1,22 @@
+exp:
+    description: |
+        Compute exponential of the input tensor element-wise.
+
+        .. math::
+            out_i = e^{x_i}
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor([0.0, 1.0, 3.0], mindspore.float32)
+            >>> output = mindspore.ops.exp(input)
+            >>> print(output)
+            [ 1.        2.7182817 20.085537]

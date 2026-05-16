@@ -1,0 +1,52 @@
+ifft:
+    description: |
+      Calculates the inverse of `fft()`.
+
+      Note:
+          - `ifft` is currently only used in `mindscience` scientific computing scenarios and
+            does not support other usage scenarios.
+          - `ifft` is not supported on Windows platform yet.
+
+      Args:
+          input (Tensor): The input tensor.
+              Supported dtypes:
+
+              - Ascend/CPU: int16, int32, int64, float16, float32, float64, complex64, complex128.
+
+          n (int, optional): Length of the transformed `dim` of the result.
+              If given, the size of the `dim` axis will be zero-padded or truncated to `n` before calculating `ifft`.
+              Default: ``None`` , which does not need to process `input`.
+          dim (int, optional): The dimension along which to take the one dimensional `ifft`.
+              Default: ``-1`` , which means transform the last dimension of `input`.
+          norm (str, optional): Normalization mode. Default: ``None`` that means ``"backward"`` .
+              Three modes are defined as,
+
+              - ``"backward"`` (normalize by :math:`1/n`).
+              - ``"forward"`` (no normalization).
+              - ``"ortho"`` (normalize by :math:`1/\sqrt{n}`).
+
+      Returns:
+          Tensor, The result of `ifft()` function. The default is the same shape as `input`.
+          If `n` is given, the size of the `dim` axis is changed to `n`.
+          When the input is int16, int32, int64, float16, float32, complex64, the return value type is complex64.
+          When the input is float64 or complex128, the return value type is complex128.
+
+      Raises:
+          TypeError: If the `input` type is not Tensor.
+          TypeError: If the `input` data type is not one of: int32, int64, float32, float64, complex64, complex128.
+          TypeError: If `n` or `dim` type is not int.
+          ValueError: If `dim` is not in the range of "[ `-input.ndim` , `input.ndim` )".
+          ValueError: If `n` is less than 1.
+          ValueError: If `norm` is none of ``"backward"`` , ``"forward"`` or ``"ortho"`` .
+
+      Supported Platforms:
+          ``Ascend`` ``CPU``
+
+      Examples:
+          >>> import mindspore
+          >>> from mindspore import Tensor, ops
+          >>> input = Tensor([ 1.6243454, -0.6117564, -0.5281718, -1.0729686])
+          >>> out = ops.ifft(input, n=4, dim=-1, norm="backward")
+          >>> print(out)
+          [-0.14713785+0.j          0.5381293 +0.11530305j  0.69522464+0.j
+            0.5381293 -0.11530305j]
