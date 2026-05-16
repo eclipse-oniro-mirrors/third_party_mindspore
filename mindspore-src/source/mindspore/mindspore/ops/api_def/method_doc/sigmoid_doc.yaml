@@ -1,0 +1,5 @@
+sigmoid:
+  description: |
+    sigmoid() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.sigmoid`.

@@ -1,0 +1,32 @@
+log2:
+    description: |
+        Returns the logarithm to the base 2 of a tensor element-wise.
+
+        .. math::
+            y_i = \log_2(x_i)
+
+        .. warning::
+            - If the input value of operator Log2 is within the range (0, 0.01] or [0.95, 1.05], the output accuracy
+              may be affacted.
+
+        Args:
+            input (Tensor): Input Tensor of any dimension. The value must be greater than 0.
+
+        Returns:
+            Tensor, has the same shape as the `input`. If `input.dtype` is of integer or boolean type, the output dtype
+            will be float32. Otherwise, the output dtype will be the same as `input.dtype`.
+
+        Raises:
+            TypeError: If `input` is not a Tensor.
+
+        Supported Platforms:
+            ``Ascend``
+
+        Examples:
+            >>> import mindspore
+            >>> import numpy as np
+            >>> from mindspore import Tensor, ops
+            >>> x = Tensor(np.array([3.0, 5.0, 7.0]), mindspore.float32)
+            >>> output = ops.auto_generate.log2_ext(x)
+            >>> print(output)
+            [1.5849625 2.321928  2.807355 ]

@@ -1,0 +1,5 @@
+greater:
+  description: |
+    greater(other) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.greater`.

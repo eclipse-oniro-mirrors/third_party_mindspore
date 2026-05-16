@@ -1,0 +1,84 @@
+/**
+ * Copyright 2019-2023 Huawei Technologies Co., Ltd
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#ifndef MINDSPORE_LITE_EXTENDRT_SESSION_DELEGATE_SESSION_H_
+#define MINDSPORE_LITE_EXTENDRT_SESSION_DELEGATE_SESSION_H_
+
+#include <vector>
+#include <string>
+#include <memory>
+#include <map>
+
+#include "extendrt/infer_session.h"
+#include "runtime/hardware_abstract/device_context/device_context.h"
+#include "extendrt/session/lite_graph_executor.h"
+#include "extendrt/delegate/ascend_acl/ascend_allocator_plugin.h"
+namespace mindspore {
+/// \brief Delegate Session implementation, use delegate api for inference.
+struct DelegateGraphInfo {
+  std::vector<MutableTensorImplPtr> inputs;
+  std::vector<std::string> input_names;
+  std::vector<MutableTensorImplPtr> outputs;
+  std::vector<std::string> output_names;
+};
+
+class GraphSinkSession : public InferSession {
+ public:
+  GraphSinkSession() = default;
+  explicit GraphSinkSession(std::shared_ptr<LiteGraphExecutor> graph_executor) {
+    graph_executor_ = std::dynamic_pointer_cast<mindspore::LiteGraphExecutor>(graph_executor);
+  }
+  ~GraphSinkSession() override;
+
+  Status Init(const std::shared_ptr<Context> &context, const ConfigInfos &config_info = {}) override;
+  Status CompileGraph(FuncGraphPtr graph, const void *data = nullptr, size_t size = 0,
+                      uint32_t *graph_id = nullptr) override;
+  Status CompileGraph(const void *model_data, size_t data_size, uint32_t *graph_id) override;
+  Status RunGraph(uint32_t graph_id, const std::vector<mindspore::MSTensor> &inputs,
+                  std::vector<mindspore::MSTensor> *outputs, const MSKernelCallBack &before,
+                  const MSKernelCallBack &after) override;
+  Status RunGraph(uint32_t graph_id, const std::vector<mindspore::MSTensor> &inputs,
+                  std::vector<mindspore::MSTensor> *outputs) override;
+  Status Resize(uint32_t graph_id, const std::vector<mindspore::MSTensor> &inputs,
+                const std::vector<std::vector<int64_t>> &dims) override;
+
+  std::vector<MutableTensorImplPtr> GetOutputs(uint32_t graph_id) override;
+  std::vector<MutableTensorImplPtr> GetInputs(uint32_t graph_id) override;
+  std::vector<std::string> GetOutputNames(uint32_t graph_id) override;
+  std::vector<std::string> GetInputNames(uint32_t graph_id) override;
+  MutableTensorImplPtr GetOutputByTensorName(uint32_t graph_id, const std::string &tensorName) override;
+  MutableTensorImplPtr GetInputByTensorName(uint32_t graph_id, const std::string &name) override;
+  void SetConfigInfo(ConfigInfos config_infos) { config_infos_ = config_infos; }
+  Status UpdateWeights(const std::vector<std::vector<mindspore::MSTensor>> &weights) override;
+  Status Finalize() {
+    MS_LOG(INFO) << "Finalize is only implemented in single_op_session now.";
+    return AscendAllocatorPlugin::GetInstance().Finalize();
+  }
+
+ private:
+  Status InitGraphInfo(DelegateGraphInfo *graph_info_ptr, uint32_t graph_id);
+  Status InitGraphInputsOutputs(const FuncGraphPtr &graph, DelegateGraphInfo *graph_info);
+  Status UpdateGraphInputsOutputs(uint32_t graph_id, DelegateGraphInfo *graph_info);
+  std::string GetConfigOption(const std::string &section_name, const std::string &option_name);
+
+  std::shared_ptr<mindspore::LiteGraphExecutor> graph_executor_;
+  std::map<std::string, std::string> options_;
+  std::map<uint32_t, DelegateGraphInfo> graph_infos_;
+  std::shared_ptr<Context> context_;
+  ConfigInfos config_infos_;
+};
+}  // namespace mindspore
+
+#endif  // MINDSPORE_LITE_EXTENDRT_SESSION_DELEGATE_SESSION_H_

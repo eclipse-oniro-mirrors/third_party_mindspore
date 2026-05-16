@@ -1,0 +1,13 @@
+#operator log2
+log2:
+    args:
+        input:
+            dtype: tensor
+    returns:
+        output:
+            dtype: tensor
+    function:
+        name: log2_ext
+    dispatch:
+        enable: True
+        GPU: None

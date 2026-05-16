@@ -1,0 +1,5 @@
+sinc:
+  description: |
+    sinc() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.sinc`.

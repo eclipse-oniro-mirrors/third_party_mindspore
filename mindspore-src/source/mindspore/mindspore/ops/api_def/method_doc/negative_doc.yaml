@@ -1,0 +1,5 @@
+negative:
+  description: |
+    negative() -> Tensor
+
+    Alias for :func:`mindspore.Tensor.neg`.

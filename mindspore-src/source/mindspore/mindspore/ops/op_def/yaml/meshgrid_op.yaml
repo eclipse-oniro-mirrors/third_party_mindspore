@@ -1,0 +1,23 @@
+#operator meshgrid
+meshgrid:
+    args:
+        inputs:
+            dtype: tuple[tensor]
+            type_cast: list[tensor]
+        indexing:
+            dtype: int
+            default: "'xy'"
+            prim_init: True
+            arg_handler: str_to_enum
+    returns:
+        outputs:
+            dtype: tuple[tensor]
+    function:
+        disable: True
+    view: True
+    bprop_expander: False
+    dispatch:
+        enable: True
+        Ascend: MeshgridAscend
+        CPU: MeshgridCPU
+        GPU: MeshgridGPU

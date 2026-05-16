@@ -1,0 +1,10 @@
+permute:
+    description: |
+        permute(*dims) -> Tensor
+
+        For details, please refer to :func:`mindspore.mint.permute`.
+
+        .. method:: Tensor.permute(*axis) -> Tensor
+            :noindex:
+
+        For details, please refer to :func:`mindspore.ops.permute`.

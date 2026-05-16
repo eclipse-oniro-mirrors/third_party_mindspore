@@ -1,0 +1,6 @@
+reciprocal:
+  description: |
+    reciprocal() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.reciprocal`.
+

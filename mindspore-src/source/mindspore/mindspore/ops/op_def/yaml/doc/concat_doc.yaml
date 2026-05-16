@@ -1,0 +1,29 @@
+concat:
+    description: |
+        Connect input tensors along with the given axis.
+
+        Args:
+            tensors (Union[tuple[Tensor], list[Tensor]]): The input tensors.
+                The shapes of all axes except the specified concatenation `axis` should be equal.
+            axis (int): The specified axis. Default ``0`` .
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input_x1 = mindspore.tensor([[0, 1], [2, 1]], mindspore.float32)
+            >>> input_x2 = mindspore.tensor([[0, 1], [2, 1]], mindspore.float32)
+            >>> output = mindspore.ops.cat((input_x1, input_x2))
+            >>> print(output)
+            [[0. 1.]
+             [2. 1.]
+             [0. 1.]
+             [2. 1.]]
+            >>> output = mindspore.ops.cat((input_x1, input_x2), 1)
+            >>> print(output)
+            [[0. 1. 0. 1.]
+             [2. 1. 2. 1.]]

@@ -1,0 +1,4 @@
+add_library(third_party_parser_mid OBJECT third_party_model_parser.cc)
+add_dependencies(third_party_parser_mid proto_mid)
+add_dependencies(third_party_parser_mid fbs_src)
+add_dependencies(third_party_parser_mid fbs_inner_src)

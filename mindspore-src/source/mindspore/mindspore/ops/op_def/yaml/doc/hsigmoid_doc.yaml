@@ -1,0 +1,40 @@
+hsigmoid:
+    description: |
+        Hard Sigmoid activation function. Calculates the output according to the input elements.
+
+        Hard Sigmoid is defined as:
+
+        .. math::
+            \text{HardSigmoid}(input) =
+            \begin{cases}
+            0, & \text{ if } input \leq -3, \\
+            1, & \text{ if } input \geq +3, \\
+            input/6 + 1/2, & \text{ otherwise }
+            \end{cases}
+
+        HardSigmoid Activation Function Graph:
+
+        .. image:: ../images/Hardsigmoid.png
+            :align: center
+
+        Args:
+            input (Tensor): The input Tensor.
+
+        Returns:
+            Tensor, with the same type and shape as the `input`.
+
+        Raises:
+            TypeError: If `input` is not a Tensor.
+            TypeError: If `input` is neither int nor float.
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> import numpy as np
+            >>> from mindspore import Tensor, ops
+            >>> input = Tensor(np.array([-1, -2, 0, 2, 1]), mindspore.float16)
+            >>> output = ops.hardsigmoid(input)
+            >>> print(output)
+            [0.3333 0.1666 0.5    0.8335 0.6665]

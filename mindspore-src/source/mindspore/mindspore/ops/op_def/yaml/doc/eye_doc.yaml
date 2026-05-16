@@ -1,0 +1,29 @@
+eye:
+  description: |
+    Returns a tensor with ones on the diagonal and zeros in the rest.
+
+    Inputs:
+        - **n** (int) - The number of rows returned.
+        - **m** (int) - The number of columns returned.
+        - **t** (mindspore.dtype) - The data type returned.
+
+    Outputs:
+        Tensor
+
+    Supported Platforms:
+        ``Ascend`` ``GPU`` ``CPU``
+
+    Examples:
+        >>> import mindspore
+        >>> eye = mindspore.ops.Eye()
+        >>> output = eye(3, 3, mindspore.int32)
+        >>> print(output)
+        [[1 0 0]
+         [0 1 0]
+         [0 0 1]]
+        >>>
+        >>> output = eye(3, 4, mindspore.float32)
+        >>> print(output)
+        [[1. 0. 0. 0.]
+         [0. 1. 0. 0.]
+         [0. 0. 1. 0.]]

@@ -1,0 +1,13 @@
+gguf==0.17.1
+numpy
+safetensors==0.6.1
+te
+tqdm
+torch==2.6.0
+sympy==1.13.1
+transformers==4.40.0
+accelerate
+onnx==1.17.0
+mistral_common
+sentencepiece
+ml_dtypes

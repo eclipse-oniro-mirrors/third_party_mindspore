@@ -1,0 +1,23 @@
+atan2:
+    description: |
+        Returns arctangent of input/other element-wise.
+
+        It returns :math:`\theta\ \in\ [-\pi, \pi]`
+        such that :math:`input = r*\sin(\theta), other = r*\cos(\theta)`, 
+        where :math:`r = \sqrt{input^2 + other^2}`.
+
+        Args:
+            input (Tensor, Number.number): The input tensor or scalar.
+            other (Tensor, Number.number): The input tensor or scalar.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> output = mindspore.ops.atan2(mindspore.tensor([0., 1.]), mindspore.tensor([1., 1.]))
+            >>> print(output)
+            [0.        0.7853982]

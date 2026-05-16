@@ -1,0 +1,23 @@
+assign_sub:
+    description: |
+        Updates a parameter or tensor by subtracting a value from it.
+
+        Support implicit type conversion and type promotion.
+
+        Args:
+            variable (Union[Parameter, Tensor]): The input parameter or tensor.
+            value (Tensor): The value to be subtracted from the `variable`.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> variable = mindspore.Parameter([1], name="global_step")
+            >>> value = mindspore.tensor([100], dtype=mindspore.int32)
+            >>> mindspore.ops.assign_sub(variable, value)
+            >>> print(variable.asnumpy())
+            [-99]

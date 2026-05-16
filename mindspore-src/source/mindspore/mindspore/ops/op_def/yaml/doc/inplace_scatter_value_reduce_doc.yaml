@@ -1,0 +1,17 @@
+inplace_scatter_value_reduce:
+    description: |
+        InplaceScatterValueReduce is for scatter_ when using a scalar as the source element with reduce.
+
+        For details, please refer to :func:`mindspore.Tensor.scatter_`.
+
+        Examples:
+            >>> from mindspore import Tensor, int64, float32
+            >>> this_tensor = Tensor([[1, 2], [3, 4]], dtype=float32)
+            >>> index = Tensor([[0], [1]], dtype=int64)
+            >>> this_tensor.scatter_(0, index, 3, reduce="multiply")
+            >>> print(this_tensor)
+            [[3., 2.],
+             [9., 4.]]
+
+        Supported Platforms:
+            ``Ascend``

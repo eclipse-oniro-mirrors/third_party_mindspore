@@ -1,0 +1,6 @@
+neg:
+  description: |
+    neg() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.neg`.
+

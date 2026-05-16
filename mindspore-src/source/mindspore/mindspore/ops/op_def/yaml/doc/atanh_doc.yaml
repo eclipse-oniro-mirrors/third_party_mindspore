@@ -1,0 +1,22 @@
+atanh:
+    description: |
+        Computes inverse hyperbolic tangent of the input element-wise.
+
+        .. math::
+
+            out_i = \tanh^{-1}(input_{i})
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> output = mindspore.ops.atanh(mindspore.tensor([0, -0.5]))
+            >>> print(output)
+            [ 0.         -0.54930615]

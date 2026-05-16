@@ -1,0 +1,5 @@
+subtract:
+    description: |
+        subtract(other, *, alpha=1) -> Tensor
+
+        This interface is deprecated from version 2.4 and will be removed in a future version.

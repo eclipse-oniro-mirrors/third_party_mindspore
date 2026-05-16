@@ -1,0 +1,5 @@
+gcd:
+  description: |
+    gcd(other) -> Tensor
+
+    For details, please refer to :func:`mindspore.ops.gcd`.

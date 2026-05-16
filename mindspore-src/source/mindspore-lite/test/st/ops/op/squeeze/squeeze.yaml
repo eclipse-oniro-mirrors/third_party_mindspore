@@ -1,0 +1,124 @@
+op_name: Squeeze
+genonnx:
+  - model_name: squeeze_fp32_dyn.onnx
+    node_param:
+      inputs: ["X"]
+      outputs: ["Z"]
+      attributes: None
+    graph_param:
+      inputs:
+        - name: X
+          data_type: 1
+          dims: [None, None]
+      outputs:
+        - name: Z
+          data_type: 1
+          dims: [None, None]
+      initializer: None
+  - model_name: squeeze_fp32_fix.onnx
+    node_param:
+      inputs: ["X"]
+      outputs: ["Z"]
+      attributes: None
+    graph_param:
+      inputs:
+        - name: X
+          data_type: 1
+          dims: [256, 1]
+      outputs:
+        - name: Z
+          data_type: 1
+          dims: [256]
+      initializer: None
+  - model_name: squeeze_fp32_fix_input_3d.onnx
+    node_param:
+      inputs: ["X"]
+      outputs: ["Z"]
+      attributes: None
+    graph_param:
+      inputs:
+        - name: X
+          data_type: 1
+          dims: [256, 1, 4]
+      outputs:
+        - name: Z
+          data_type: 1
+          dims: [256, 4]
+      initializer: None
+  - model_name: squeeze_fp32_fix_input_4d.onnx
+    node_param:
+      inputs: ["X"]
+      outputs: ["Z"]
+      attributes: None
+    graph_param:
+      inputs:
+        - name: X
+          data_type: 1
+          dims: [256, 256, 1, 4]
+      outputs:
+        - name: Z
+          data_type: 1
+          dims: [256, 256, 4]
+      initializer: None
+
+gengold:
+  - gold_name: squeeze_fp32_dyn_gold_1
+    in_model: squeeze_fp32_dyn.onnx
+    input_dtypes: [1]
+    input_shapes: [[128, 128]]
+  - gold_name: squeeze_fp32_fix_gold_1
+    in_model: squeeze_fp32_fix.onnx
+    input_dtypes: [1]
+    input_shapes: [[256, 1]]
+  - gold_name: squeeze_fp32_fix_input_3d
+    in_model: squeeze_fp32_fix_input_3d.onnx
+    input_dtypes: [1]
+    input_shapes: [[256, 1, 4]]
+  - gold_name: squeeze_fp32_fix_input_4d
+    in_model: squeeze_fp32_fix_input_4d.onnx
+    input_dtypes: [1]
+    input_shapes: [[256, 256, 1, 4]]
+
+convert:
+  - out_model: squeeze_fp32_dyn_2_dyn.ms
+    in_model: squeeze_fp32_dyn.onnx
+    input_shapes: None
+    fp16: off
+  - out_model: squeeze_fp32_dyn_2_fix.ms
+    in_model: squeeze_fp32_dyn.onnx
+    input_shapes: X:128,128
+    fp16: off
+  - out_model: squeeze_fp32_fix_2_fix.ms
+    in_model: squeeze_fp32_fix.onnx
+    input_shapes: None
+    fp16: off
+  - out_model: squeeze_fp32_fix_input_3d.ms
+    in_model: squeeze_fp32_fix_input_3d.onnx
+    input_shapes: None
+    fp16: on
+  - out_model: squeeze_fp32_fix_input_4d.ms
+    in_model: squeeze_fp32_fix_input_4d.onnx
+    input_shapes: None
+    fp16: on
+    
+run:
+  - in_model: squeeze_fp32_dyn_2_dyn.ms
+    gold_in: squeeze_fp32_dyn_gold_1
+    dtypes: 1
+    input_shapes: X:128,128
+  - in_model: squeeze_fp32_dyn_2_fix.ms
+    gold_in: squeeze_fp32_dyn_gold_1
+    dtypes: 1
+    input_shapes: None
+  - in_model: squeeze_fp32_fix_2_fix.ms
+    gold_in: squeeze_fp32_fix_gold_1
+    dtypes: 1
+    input_shapes: None
+  - in_model: squeeze_fp32_fix_input_3d.ms
+    gold_in: squeeze_fp32_fix_input_3d
+    dtypes: 1
+    input_shapes: None
+  - in_model: squeeze_fp32_fix_input_4d.ms
+    gold_in: squeeze_fp32_fix_input_4d
+    dtypes: 1
+    input_shapes: None

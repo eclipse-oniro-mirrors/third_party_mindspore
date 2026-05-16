@@ -1,0 +1,26 @@
+log:
+    description: |
+        Compute the natural logarithm of the input tensor element-wise.
+
+        .. math::
+            y_i = \log_e(x_i)
+
+        .. warning::
+            If the input value of operator Log is within the range (0, 0.01] or [0.95, 1.05], the output accuracy may
+            be affacted.
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> x = mindspore.tensor([1.0, 2.0, 4.0], mindspore.float32)
+            >>> output = mindspore.ops.log(x)
+            >>> print(output)
+            [0.        0.6931472 1.3862944]

@@ -1,0 +1,13 @@
+#operator SiLU
+silu:
+    args:
+        input:
+            dtype: tensor
+    returns:
+        output:
+            dtype: tensor
+    class:
+        name: SiLU
+    dispatch:
+        enable: True
+        CPU: SiLUCPU

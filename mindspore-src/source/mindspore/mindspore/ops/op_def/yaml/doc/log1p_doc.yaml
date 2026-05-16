@@ -1,0 +1,22 @@
+log1p:
+    description: |
+        Compute the natural logarithm of (tensor + 1) element-wise.
+
+        .. math::
+            out_i = \log_e(input_i + 1)
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> x = mindspore.tensor([1.0, 2.0, 4.0], mindspore.float32)
+            >>> output = mindspore.ops.log1p(x)
+            >>> print(output)
+            [0.6931472 1.0986123 1.609438 ]

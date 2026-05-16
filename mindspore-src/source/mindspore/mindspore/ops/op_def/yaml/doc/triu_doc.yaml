@@ -1,0 +1,52 @@
+triu:
+    description: |
+        Zero the input tensor below the diagonal specified.
+
+        Args:
+            input (Tensor): The input tensor.
+            diagonal (int, optional): The diagonal specified of 2-D tensor. Default ``0`` represents the main diagonal.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor([[ 1,  2,  3,  4],
+            ...                           [ 5,  6,  7,  8],
+            ...                           [10, 11, 12, 13],
+            ...                           [14, 15, 16, 17]])
+            >>> mindspore.ops.triu(input)
+            Tensor(shape=[4, 4], dtype=Int64, value=
+            [[ 1,  2,  3,  4],
+             [ 0,  6,  7,  8],
+             [ 0,  0, 12, 13],
+             [ 0,  0,  0, 17]])
+            >>> mindspore.ops.triu(input, 1)
+            Tensor(shape=[4, 4], dtype=Int64, value=
+            [[ 0,  2,  3,  4],
+             [ 0,  0,  7,  8],
+             [ 0,  0,  0, 13],
+             [ 0,  0,  0,  0]])
+            >>> mindspore.ops.triu(input, -1)
+            Tensor(shape=[4, 4], dtype=Int64, value=
+            [[ 1,  2,  3,  4],
+             [ 5,  6,  7,  8],
+             [ 0, 11, 12, 13],
+             [ 0,  0, 16, 17]])
+            >>> input = mindspore.tensor([[[ 1,  2,  3],
+            ...                            [ 5,  6,  7],
+            ...                            [10, 11, 12]],
+            ...                           [[ 1,  2,  3],
+            ...                            [ 5,  6,  7],
+            ...                            [10, 11, 12]]])
+            >>> mindspore.ops.triu(input)
+            Tensor(shape=[2, 3, 3], dtype=Int64, value=
+            [[[ 1,  2,  3],
+              [ 0,  6,  7],
+              [ 0,  0, 12]],
+             [[ 1,  2,  3],
+              [ 0,  6,  7],
+              [ 0,  0, 12]]])

@@ -1,0 +1,30 @@
+randperm_v2:
+    description: |
+        Generates random permutation of integers from 0 to n-1.
+
+        .. warning::
+            - This is an experimental API that is subject to change or deletion.
+            - The Ascend backend does not support the reproducibility of random numbers, so
+              the `seed` parameter has no effect.
+
+
+        Args:
+            n (Union[Tensor, int]): The upper bound (exclusive).
+            seed (int, optional): Random seed. Default ``0`` . When seed is -1, offset is 0,
+                it's determined by time.
+            offset (int, optional): Offset to generate random numbers. Priority is higher than random seed.
+                Default ``0`` . It must be non-negative.
+            dtype (mindspore.dtype, optional): The data type returned. Default ``mstype.int64``.
+
+        Returns:
+            Tensor. Its shape is specified by the required args `n`.
+
+        Supported Platforms:
+            ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> n, seed, offset = 4, 0, 0
+            >>> output = mindspore.ops.randperm(n, seed, offset, dtype=mindspore.int64)
+            >>> print(output)
+            [0 2 1 3]

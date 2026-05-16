@@ -1,0 +1,30 @@
+gather_nd:
+  description: |
+      Gathers slices from the input tensor by specified indices.
+
+      Suppose `indices` is an K-dimensional integer tensor, follow the formula below:
+
+      .. math::
+
+          output[(i_0, ..., i_{K-2})] = input\_x[indices[(i_0, ..., i_{K-2})]]
+
+      Must be satisfied :math:`indices.shape[-1] <= input\_x.rank`.
+
+      Args:
+          input_x (Tensor): The input tensor.
+          indices (Tensor): The specified indices.
+
+      Returns:
+          Tensor
+
+      Supported Platforms:
+          ``Ascend`` ``GPU`` ``CPU``
+
+      Examples:
+          >>> import mindspore
+          >>> import numpy as np
+          >>> input_x = mindspore.tensor([[-0.1, 0.3, 3.6], [0.4, 0.5, -3.2]], mindspore.float32)
+          >>> indices = mindspore.tensor([[0, 0], [1, 1]], mindspore.int32)
+          >>> output = mindspore.ops.gather_nd(input_x, indices)
+          >>> print(output)
+          [-0.1  0.5]

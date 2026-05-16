@@ -1,0 +1,5 @@
+clamp:
+  description: |
+    clamp(min=None, max=None) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.clamp`.

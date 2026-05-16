@@ -1,0 +1,5 @@
+masked_select:
+  description: |
+    masked_select(mask) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.masked_select`.

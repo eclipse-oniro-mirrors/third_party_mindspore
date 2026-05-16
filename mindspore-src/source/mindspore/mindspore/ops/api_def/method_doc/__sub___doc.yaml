@@ -1,0 +1,10 @@
+__sub__:
+  description: |
+    __sub__(other, *, alpha=1) -> Tensor
+
+    Alias for :func:`mindspore.Tensor.sub` of `mindspore.Tensor.sub(other, *, alpha=1)`.
+
+    .. method:: Tensor.__sub__(y) -> Tensor
+        :noindex:
+
+    Alias for :func:`mindspore.Tensor.sub` of `mindspore.Tensor.sub(y)`.

@@ -1,0 +1,22 @@
+acos:
+    description: |
+        Compute arccosine of each element in input tensors.
+
+        .. math::
+
+            out_i = \cos^{-1}(input_i)
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> output = mindspore.ops.acos(mindspore.tensor([0.74, 0.04, 0.30, 0.56]))
+            >>> print(output)
+            [0.737726  1.5307857 1.2661036 0.9764105]

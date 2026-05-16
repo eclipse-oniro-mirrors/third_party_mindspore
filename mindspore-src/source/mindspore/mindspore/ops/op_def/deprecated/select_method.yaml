@@ -1,0 +1,16 @@
+#deprecated select
+select:
+  args:
+    input:
+      dtype: tensor
+    condition:
+      dtype: tensor
+    y:
+      dtype: tensor
+      type_cast: number
+  returns:
+    output:
+      dtype: tensor
+  view: True
+  class:
+      name: SelectExtView

@@ -1,0 +1,5 @@
+tan:
+  description: |
+    tan() ->Tensor
+
+    For details, please refer to :func:`mindspore.ops.tan`.

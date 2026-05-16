@@ -1,0 +1,12 @@
+#operator isfinite
+isfinite:
+  args:
+    input:
+      dtype: tensor
+  returns:
+    output:
+      dtype: tensor
+  class:
+    name: IsFinite
+  dispatch:
+    enable: True

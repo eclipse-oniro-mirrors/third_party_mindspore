@@ -1,0 +1,18 @@
+#operator view_as
+view_as:
+  args:
+    input:
+      dtype: tensor
+    other:
+      dtype: tensor
+  returns:
+    output:
+      dtype: tensor
+  class:
+    name: ViewAs
+  view: True
+  bprop_expander: False
+  dispatch:
+    enable: True
+    Ascend: ViewAsAscend
+    GPU: None

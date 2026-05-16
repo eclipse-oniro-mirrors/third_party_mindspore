@@ -1,0 +1,47 @@
+unsorted_segment_sum:
+    description: |
+        Compute the sum of the input tensor along segments.
+
+        The following figure shows the calculation process of unsorted_segment_sum:
+
+        .. image:: UnsortedSegmentSum.png
+
+        .. math::
+
+            \text{output}[i] = \sum_{segment\_ids[j] == i} \text{data}[j, \ldots]
+        
+        where :math:`j,...` is a tuple describing the index of element in data. `segment_ids` selects which elements 
+        in data to sum up. Segment_ids does not need to be sorted, and it does not need to cover all values in the 
+        entire valid value range.
+
+        Note:
+            - If the segment_id i is absent in the segment_ids, then output[i] will be filled with 0.
+            - On Ascend, if the value of segment_id is less than 0 or greater than the length of the input data shape, an
+              execution error will occur.
+
+        If the sum of the given segment_ids :math:`i` is empty, then :math:`\text{output}[i] = 0`. If the given segment_ids
+        is negative, the value will be ignored. 'num_segments' must be equal to the number of different segment_ids.
+
+        Args:
+            input_x (Tensor): The input tensor.
+            segment_ids (Tensor): Indicate the segment to which each element belongs.
+            num_segments (Union[int, Tensor], optional): Number of segments, it can be an int or 0-D tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> input_x = mindspore.tensor([1, 2, 3, 4])
+            >>> segment_ids = mindspore.tensor([0, 0, 1, 2])
+            >>> num_segments = 3
+            >>> mindspore.ops.unsorted_segment_sum(input_x, segment_ids, num_segments)
+            Tensor(shape=[3], dtype=Int64, value= [3, 3, 4])
+            >>> input_x = mindspore.tensor([1, 2, 3, 4, 2, 5])
+            >>> segment_ids = mindspore.tensor([0, 0, 1, 2, 3, 4])
+            >>> num_segments = 6
+            >>> mindspore.ops.unsorted_segment_sum(input_x, segment_ids, num_segments)
+            Tensor(shape=[6], dtype=Int64, value= [3, 3, 4, 2, 5, 0])

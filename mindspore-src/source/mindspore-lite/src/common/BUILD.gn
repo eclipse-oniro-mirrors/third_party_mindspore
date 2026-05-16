@@ -1,0 +1,89 @@
+import("//build/ohos.gni")
+
+lite_src_common_mid_sources = [
+  "config_file.cc",
+  "context_util.cc",
+  "file_utils.cc",
+  "mmap_utils.cc",
+  "utils.cc",
+  "graph_util.cc",
+  "log.cc",
+  "prim_util.cc",
+  "tensor_util.cc",
+  "config_infos.cc",
+  "helper/external_tensor/file_helper.cc",
+  "helper/external_tensor/memory_helper.cc",
+  "thread_utils.cc",
+  "random_data_generator.cc",
+  "string_util.cc",
+  "dynamic_library_loader.cc",
+  "hi_app_event/hi_app_event.cc",
+  "hi_app_event/hi_app_event_thread.cc",
+]
+
+ohos_source_set("lite_common_mid_obj") {
+  sources = lite_src_common_mid_sources
+
+  include_dirs = [
+    "../",
+    "../../",
+    "../../../",
+    "../../../mindspore/mindspore/core/include",
+    "../../../../third_party/",
+    "../litert/kernel/cpu/",
+    "../../../mindspore/mindspore/core/mindrt/",
+    "../../../mindspore/mindspore/core/mindrt/src/",
+    "../../../mindspore/mindspore/core/mindrt/include/",
+  ]
+
+  external_deps = [
+    "flatbuffers:libflatbuffers_static",
+    "bounds_checking_function:libsec_shared",
+    "hiappevent:hiappevent_innerapi",
+    "hilog:libhilog",
+  ]
+
+  configs = [
+    "../../:disable_android",
+    "../../:secure_option",
+  ]
+
+  defines = [
+    "ENABLE_MINDRT",
+    "MS_COMPILE_OHOS",
+    "PRIMITIVE_WRITEABLE",
+    "VERSION_STR=\"2.1.0\"",
+    "ENABLE_HI_APP_EVENT",
+  ]
+  if (target_cpu == "arm") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM32",
+      "ENABLE_NEON",
+    ]
+  } else if (target_cpu == "arm64") {
+    defines += [
+      "ENABLE_ARM",
+      "ENABLE_ARM64",
+      "ENABLE_NEON",
+      "ENABLE_FP16",
+      "USE_OPENCL_WRAPPER",
+      "MS_OPENCL_PROFILE=false",
+      "CL_TARGET_OPENCL_VERSION=200",
+      "CL_HPP_TARGET_OPENCL_VERSION=120",
+      "CL_HPP_MINIMUM_OPENCL_VERSION=120",
+    ]
+  }
+
+  cflags_cc = [
+    "-Wno-ignored-qualifiers",
+    "-Wunused-private-field",
+    "-Wno-unused-private-field",
+    "-Wno-inconsistent-missing-override",
+    "-Wno-macro-redefined",
+    "-Wno-constant-conversion",
+  ]
+
+  part_name = "mindspore"
+  subsystem_name = "thirdparty"
+}

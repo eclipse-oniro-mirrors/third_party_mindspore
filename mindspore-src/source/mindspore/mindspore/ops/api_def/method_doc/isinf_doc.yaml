@@ -1,0 +1,8 @@
+isinf:
+  description: |
+    isinf() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.isinf`.
+
+    Supported Platforms:
+        ``Ascend`` ``CPU`` ``GPU``

@@ -1,0 +1,27 @@
+greater_equal:
+    description: |
+        Compute the value of :math:`input >= other` element-wise.
+
+        Args:
+            input (Union[Tensor, Number]): The first input.
+            other (Union[Tensor, Number]): The second input.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> # case 1: The shape of two inputs are different
+            >>> input = mindspore.tensor([1, 2, 3], mindspore.float32)
+            >>> output = mindspore.ops.greater_equal(input, 2.0)
+            >>> print(output)
+            [False  True True]
+            >>> # case 2: The shape of two inputs are the same
+            >>> input = mindspore.tensor([1, 2, 3], mindspore.int32)
+            >>> other = mindspore.tensor([1, 2, 4], mindspore.int32)
+            >>> output = mindspore.ops.greater_equal(input, other)
+            >>> print(output)
+            [ True  True False]

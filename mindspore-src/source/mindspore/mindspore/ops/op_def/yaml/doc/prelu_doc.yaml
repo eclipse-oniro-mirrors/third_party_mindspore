@@ -1,0 +1,52 @@
+prelu:
+    description: |
+        Parametric Rectified Linear Unit activation function.
+
+        PReLU is described in the paper `Delving Deep into Rectifiers: Surpassing Human-Level Performance on
+        ImageNet Classification <https://arxiv.org/abs/1502.01852>`_. Defined as follows:
+    
+        .. math::
+            prelu(x_i)= \max(0, x_i) + \min(0, w * x_i),
+    
+        where :math:`x_i` is an element of a channel of the input, :math:`w` is the weight of the channel.
+    
+        PReLU Activation Function Graph:
+
+        .. image:: ../images/PReLU2.png
+            :align: center
+
+        .. note::
+            - Channel dim is the 2nd dim of input. When input has dims < 2, then there is
+              no channel dim and the number of channels = 1.
+            - In GE mode, the rank of the input tensor must be greater than 1;
+              otherwise, an error will be triggered.
+
+        Args:
+            input (Tensor): The input Tensor of the activation function.
+            weight (Tensor):  Weight Tensor. The size of the weight should be 1 or the number of channels at Tensor `input`.
+    
+        Returns:
+            Tensor, with the same shape and dtype as `input`.
+            For detailed information, please refer to :class:`mindspore.mint.nn.PReLU`.
+    
+        Raises:
+            TypeError: If the `input` or the `weight` is not a Tensor.
+            ValueError: If the `weight` is not a 0-D or 1-D Tensor.
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+    
+        Examples:
+            >>> import mindspore
+            >>> import numpy as np
+            >>> from mindspore import Tensor, ops
+            >>> x = Tensor(np.arange(-6, 6).reshape((2, 3, 2)), mindspore.float32)
+            >>> weight = Tensor(np.array([0.1, 0.6, -0.3]), mindspore.float32)
+            >>> output = ops.prelu(x, weight)
+            >>> print(output)
+            [[[-0.60 -0.50]
+              [-2.40 -1.80]
+              [ 0.60  0.30]]
+             [[ 0.00  1.00]
+              [ 2.00  3.00]
+              [ 4.0   5.00]]]

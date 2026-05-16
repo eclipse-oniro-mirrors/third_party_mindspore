@@ -1,0 +1,42 @@
+select:
+    description: |
+        The conditional tensor determines whether the corresponding element in the output must be
+        selected from `input` (if True) or `other` (if False) based on the value of each
+        element.
+
+        It can be defined as:
+
+        .. math::
+            out_i = \begin{cases}
+            input_i, & \text{if } condition_i \\
+            other_i, & \text{otherwise}
+            \end{cases}
+
+        Args:
+            condition (Tensor[bool]): The condition tensor.
+            input (Union[Tensor, int, float]): The first tensor or number to be selected.
+            other (Union[Tensor, int, float]): The second tensor or number to be selected.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+        
+        Examples:
+            >>> import mindspore
+            >>> # case1: Both `input` and `other` are tensor
+            >>> cond = mindspore.tensor([True, False])
+            >>> x = mindspore.tensor([2,3], mindspore.float32)
+            >>> y = mindspore.tensor([1,2], mindspore.float32)
+            >>> output1 = mindspore.ops.select(cond, x, y)
+            >>> print(output1)
+            [2. 2.]
+            >>> # case2: Both `input` and `other` are number
+            >>> output2 = mindspore.ops.select(cond, input=1, other=2)
+            >>> print(output2)
+            [1 2]
+            >>> # case3: `input` is tensor and `other` is number
+            >>> output3 = mindspore.ops.select(cond, x, other=3)
+            >>> print(output3)
+            [2. 3.]

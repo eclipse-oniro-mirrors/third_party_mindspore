@@ -1,0 +1,11 @@
+#operator trace_ext
+trace_ext:
+    args:
+        input:
+            dtype: tensor
+    returns:
+        output:
+            dtype: tensor
+    dispatch:
+        enable: True
+        GPU: None

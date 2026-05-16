@@ -1,0 +1,23 @@
+rsqrt:
+    description: |
+        Compute reciprocal of square root of input tensor element-wise.
+
+        .. math::
+
+            out_{i} =  \frac{1}{\sqrt{input_{i}}}
+
+        Args:
+            input (Tensor): The input tensor.
+    
+        Returns:
+            Tensor
+    
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+    
+        Examples:
+            >>> import mindspore
+            >>> input = mindspore.tensor([-0.0370,  0.2970,  1.5420, -0.9105])
+            >>> output = mindspore.ops.rsqrt(input)
+            >>> print(output)
+            [       nan 1.8349396  0.8053002        nan]

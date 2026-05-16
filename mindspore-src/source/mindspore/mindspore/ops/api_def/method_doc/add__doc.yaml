@@ -1,0 +1,5 @@
+add_:
+  description: |
+    add_(other) -> Tensor
+    
+    In-place version of :func:`mindspore.Tensor.add`.

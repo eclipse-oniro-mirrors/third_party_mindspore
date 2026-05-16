@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration ver="2.0">
+    <target name="MindSporeSystemTest">
+        <preparer>
+            <option name="push" value="ml_face_isface.ms -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface_0.input -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface0.output -> /data/test/resource" src="res"/>
+        </preparer>
+    </target>
+    <target name="MindSporeUnitTest">
+        <preparer>
+            <option name="push" value="ml_face_isface.ms -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface_0.input -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface0.output -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface.input -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_ocr_cn.ms -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_ocr_cn_0.input -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_ocr_cn0.output -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train.ms -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train_0.input -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train_1.input -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train_infer0.output -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train_infer_0.input -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train_infer_1.input -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train_train_0.input -> /data/test/resource" src="res"/>
+            <option name="push" value="lenet_train_train_1.input -> /data/test/resource" src="res"/>
+            <option name="push" value="xiaoyi_train_codegen.ms -> /data/test/resource" src="res"/>
+            <option name="push" value="tinynet.om.ms -> /data/test/resource" src="res"/>
+        </preparer>
+    </target>
+    <target name="MindSporeFuzzTest">
+        <preparer>
+            <option name="push" value="ml_face_isface.ms -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface_0.input -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface0.output -> /data/test/resource" src="res"/>
+            <option name="push" value="ml_face_isface.input -> /data/test/resource" src="res"/>
+        </preparer>
+    </target>
+</configuration>

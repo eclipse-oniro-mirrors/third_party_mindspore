@@ -1,0 +1,23 @@
+#operator baddbmm
+baddbmm:
+  args:
+    input:
+      dtype: tensor
+    batch1:
+      dtype: tensor
+    batch2:
+      dtype: tensor
+    beta:
+      dtype: number
+      type_cast: tensor
+      default: 1
+    alpha:
+      dtype: number
+      type_cast: tensor
+      default: 1
+  returns:
+    output:
+      dtype: tensor
+  dispatch:
+    enable: True
+    Ascend: BaddbmmAscend

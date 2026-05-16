@@ -1,0 +1,23 @@
+masked_select:
+    description: |
+        Return a new 1-D tensor which indexes the `input` tensor according to the boolean `mask`.
+        
+        Support broadcast.
+        
+        Args:
+            input (Tensor): The input tensor.
+            mask (Tensor[bool]): The input mask.
+        
+        Returns:
+            Tensor
+        
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+        
+        Examples:
+            >>> import mindspore
+            >>> x = mindspore.tensor([1, 2, 3, 4], mindspore.int64)
+            >>> mask = mindspore.tensor([1, 0, 1, 0], mindspore.bool)
+            >>> output = mindspore.ops.masked_select(x, mask)
+            >>> print(output)
+            [1 3]

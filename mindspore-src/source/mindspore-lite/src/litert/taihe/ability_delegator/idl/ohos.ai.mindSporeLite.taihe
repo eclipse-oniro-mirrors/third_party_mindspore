@@ -1,0 +1,225 @@
+/*
+ * Copyright 2025 Huawei Technologies Co., Ltd
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@!namespace("@ohos.ai.mindSporeLite", "mindSporeLite")
+// Change the ArkTS module name of the current Taihe package to @ohos.ai.mindSporeLite, 
+//and place all the contents of this package under the ArkTS namespace namespace mindSporeLite { ... }.
+
+@!sts_inject("""
+static { loadLibrary("mindspore_ani_taihe_native.z"); }
+""")
+
+@rename("loadModelFromFile")
+@promise function loadModelFromFileSync(model: String, context: Optional<Context>): Model;
+
+@rename("loadModelFromFile")
+function loadModelFromFileCallback(model: String, callback: (a:Model) => void): void;
+
+@rename("loadModelFromFile")
+function loadModelFromFileContextCallback(model: String, context:Context, callback: (a:Model) => void): void;
+
+@rename("loadModelFromBuffer")
+@promise function loadModelFromBufferSync(model: @arraybuffer Array<u8>, context:Optional<Context>): Model;
+
+@rename("loadModelFromBuffer")
+function loadModelFromBufferCallback(model: @arraybuffer Array<u8>, callback: (a:Model) => void): void;
+
+@rename("loadModelFromBuffer")
+function loadModelFromBufferContextCallback(model: @arraybuffer Array<u8>, context:Context, callback: (a:Model) => void): void;
+
+@rename("loadModelFromFd")
+@promise function loadModelFromFdSync(model:i32, context:Optional<Context>): Model;
+
+@rename("loadModelFromFd")
+function loadModelFromFdCallback(model:i32, callback: (a:Model) => void): void;
+
+@rename("loadModelFromFd")
+function loadModelFromFdContextCallback(model:i32, context:Context, callback: (a:Model) => void): void;
+
+@promise function loadTrainModelFromFile(model: String, trainCfg: Optional<TrainCfg>, context:Optional<Context>): Model;
+
+@promise function loadTrainModelFromBuffer(model: @arraybuffer Array<u8>, trainCfg: Optional<TrainCfg>, context:Optional<Context>): Model;
+
+@promise function loadTrainModelFromFd(model: i32, trainCfg: Optional<TrainCfg>, context: Optional<Context>): Model;
+
+struct Context{
+    target: Optional<Array<String>>;
+    cpu: Optional<CpuDevice>;
+    nnrt: Optional<NNRTDevice>;
+}
+function ConstructContext(target: Optional<Array<String>>, cpu: Optional<CpuDevice>, nnrt: Optional<NNRTDevice>): Context;
+
+struct CpuDevice{
+    threadNum: Optional<i32>;
+    threadAffinityMode: Optional<ThreadAffinityMode>;
+    threadAffinityCoreList: Optional<Array<i32>>;
+    precisionMode: Optional<String>;
+}
+function ConstructCpuDevice(threadNum: Optional<i32>, threadAffinityMode: Optional<ThreadAffinityMode>, threadAffinityCoreList: Optional<Array<i32>>, precisionMode: Optional<String>): CpuDevice;
+
+struct NNRTDevice{
+    deviceID: Optional<@bigint Array<u8>>;
+    performanceMode: Optional<PerformanceMode>;
+    priority: Optional<Priority>;
+    extensions: Optional<Array<Extension>>;
+}
+
+enum PerformanceMode: i32 {
+    PERFORMANCE_NONE = 0,
+    PERFORMANCE_LOW = 1,
+    PERFORMANCE_MEDIUM = 2,
+    PERFORMANCE_HIGH = 3,
+    PERFORMANCE_EXTREME = 4,
+}
+
+struct Extension{
+    name: String;
+    value: @arraybuffer Array<u8>;
+}
+function ConstructExtension(name: String, value: @arraybuffer Array<u8>): Extension;
+
+enum ThreadAffinityMode: i32 {
+    NO_AFFINITIES = 0,
+    BIG_CORES_FIRST = 1,
+    LITTLE_CORES_FIRST = 2,
+}
+
+@class
+interface Model{
+    @get getLearningRate(): Optional<f64>;
+    @set setLearningRate(ulearningRate: Optional<f64>): void;
+
+    @get getTrainMode(): Optional<bool>;
+    @set setTrainMode(utrainMode: Optional<bool>): void;
+
+    getInputs(): Array<MSTensor>;
+
+    predict(inputs: Array<MSTensor>, callback: (tensor_call: Array<MSTensor>) => void): void;
+
+    @gen_promise("predict")
+    predictSync(inputs: Array<MSTensor>): Array<MSTensor>;
+
+    resize(inputs: Array<MSTensor>, dims: Array<Array<i32>>): bool;
+
+    runStep(inputs: Array<MSTensor>): bool;
+
+    getWeights(): Array<MSTensor>;
+
+    updateWeights(weights: Array<MSTensor>): bool;
+
+    setupVirtualBatch(virtualBatchMultiplier: i32, lr: f64, momentum: f64): bool;
+
+    exportModel(modelFile: String, quantizationType: Optional<QuantizationType>, exportInferenceOnly: Optional<bool>, outputTensorName: Optional<Array<String>>): bool;
+
+    exportWeightsCollaborateWithMicro(weightFile: String, isInference: Optional<bool>, enableFp16: Optional<bool>, changeableWeightsName: Optional<Array<String>>): bool;
+
+    getInner(): i64;
+}
+
+@class
+interface MSTensor{
+    @get getName(): String;
+    @set setName(uname: String): void;
+
+    @get getShape(): Array<i32>;
+    @set setShape(ushape: Array<i32>): void;
+    
+    @get getElementNum(): i32;
+    @set setElementNum(uelementNum: i32): void;
+
+    @get getDataSize(): i32;
+    @set setDataSize(udataSize: i32): void;
+
+    @get getDtype(): DataType;
+    @set setDtype(udtype: DataType): void;
+
+    @get getFormat(): Format;
+    @set setFormat(uformat: Format): void;
+
+    getData(): @arraybuffer Array<u8>;
+
+    setData(inputArray: @arraybuffer Array<u8>): void;
+
+    getInner(): i64;
+}
+
+enum DataType: i32 {
+    TYPE_UNKNOWN = 0,
+    NUMBER_TYPE_INT8 = 32,
+    NUMBER_TYPE_INT16 = 33,
+    NUMBER_TYPE_INT32 = 34,
+    NUMBER_TYPE_INT64 = 35,
+    NUMBER_TYPE_UINT8 = 37,
+    NUMBER_TYPE_UINT16 = 38,
+    NUMBER_TYPE_UINT32 = 39,
+    NUMBER_TYPE_UINT64 = 40,
+    NUMBER_TYPE_FLOAT16 = 42,
+    NUMBER_TYPE_FLOAT32 = 43,
+    NUMBER_TYPE_FLOAT64 = 44,
+}
+
+enum Format: i32 {
+    DEFAULT_FORMAT = -1,
+    NCHW = 0,
+    NHWC = 1,
+    NHWC4 = 2,
+    HWKC = 3,
+    HWCK = 4,
+    KCHW = 5,
+}
+
+enum QuantizationType: i32 {
+    NO_QUANT = 0,
+    WEIGHT_QUANT = 1,
+    FULL_QUANT = 2,
+}
+
+// interface only data member -> struct, in taihe
+struct TrainCfg{
+    lossName: Optional<Array<String>>;
+    optimizationLevel: Optional<OptimizationLevel>;
+}
+
+function ConstructTrainCfg(lossName: Optional<Array<String>>, optimizationLevel: Optional<OptimizationLevel>): TrainCfg;
+
+enum OptimizationLevel: i32{
+    O0 = 0,
+    O2 = 2,
+    O3 = 3,
+    AUTO = 4,
+}
+
+enum NNRTDeviceType: i32 {
+    NNRTDEVICE_OTHERS = 0,
+    NNRTDEVICE_CPU = 1,
+    NNRTDEVICE_GPU = 2,
+    NNRTDEVICE_ACCELERATOR = 3, 
+}
+
+enum Priority: i32 {
+    PRIORITY_NONE = 0,
+    PRIORITY_LOW = 1,
+    PRIORITY_MEDIUM = 2,
+    PRIORITY_HIGH = 3,
+}
+
+@class
+interface NNRTDeviceDescription{
+    deviceID(): @bigint Array<u8>;
+    deviceType(): NNRTDeviceType; 
+    deviceName(): String;
+}
+
+function getAllNNRTDeviceDescriptions(): Array<NNRTDeviceDescription>;

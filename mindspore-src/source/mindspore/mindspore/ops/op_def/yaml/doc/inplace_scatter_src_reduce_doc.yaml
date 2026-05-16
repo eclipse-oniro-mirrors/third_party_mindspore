@@ -1,0 +1,18 @@
+inplace_scatter_src_reduce:
+    description: |
+        InplaceScatterSrcReduce is for scatter_ when using a Tensor as the source element with reduce.
+
+        For details, please refer to :func:`mindspore.Tensor.scatter_`.
+
+        Examples:
+            >>> from mindspore import Tensor, int64, float32
+            >>> this_tensor = Tensor([[1, 2], [3, 4]], dtype=float32)
+            >>> index = Tensor([[1, 0], [1, 0]], dtype=int64)
+            >>> src = Tensor([[4, 3], [2, 1]], dtype=float32)
+            >>> this_tensor.scatter_(1, index, src, reduce='add')
+            >>> print(this_tensor)
+            [[4., 6.],
+             [4., 6.]]
+
+        Supported Platforms:
+            ``Ascend``

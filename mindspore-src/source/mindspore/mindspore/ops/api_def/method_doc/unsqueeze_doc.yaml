@@ -1,0 +1,5 @@
+unsqueeze:
+  description: |
+    unsqueeze(dim) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.unsqueeze`.

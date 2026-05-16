@@ -1,0 +1,5 @@
+square:
+  description: |
+    square() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.square`.

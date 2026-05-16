@@ -1,0 +1,5 @@
+div_:
+    description: |
+        div_(other, *, rounding_mode=None) -> Tensor
+
+        In-place version of :func:`mindspore.Tensor.div`.

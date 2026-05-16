@@ -1,0 +1,8 @@
+inverse:
+  description: |
+    inverse() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.inverse`.
+    
+    Supported Platforms:
+        ``Ascend`` ``GPU`` ``CPU``

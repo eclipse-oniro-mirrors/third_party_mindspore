@@ -1,0 +1,26 @@
+#operator new_empty
+new_empty:
+    args:
+        input:
+            dtype: tensor
+        size:
+            dtype: tuple[int]
+            type_cast: int, list[int]
+        dtype:
+            dtype: TypeId
+            arg_handler: dtype_to_type_id
+            default: None
+        device:
+            dtype: int
+            arg_handler: str_to_enum
+            default: None
+    returns:
+        y:
+            dtype: tensor
+    function:
+        disable: True
+    dispatch:
+        enable: True
+        Ascend: NewEmptyAscend
+        CPU: NewEmptyCPU
+        GPU: None

@@ -1,0 +1,23 @@
+assign_add:
+    description: |
+        Updates a parameter or tensor by adding a value to it.
+
+        Support implicit type conversion and type promotion.
+
+        Args:
+            variable (Union[Parameter, Tensor]): The input parameter or tensor.
+            value (Union[Tensor, Number]): The value to be added to the `variable`.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> variable = mindspore.Parameter([1], name="global_step")
+            >>> value = mindspore.tensor([100], dtype=mindspore.int32)
+            >>> mindspore.ops.assign_add(variable, value)
+            >>> print(variable.asnumpy())
+            [101]

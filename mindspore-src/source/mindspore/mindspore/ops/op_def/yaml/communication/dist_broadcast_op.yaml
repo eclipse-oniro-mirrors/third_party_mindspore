@@ -1,0 +1,22 @@
+#operator dist reduce scatter
+dist_comm_broadcast:
+    args:
+        input:
+            dtype: tensor
+        src:
+            dtype: int
+        rank_id:
+            dtype: int
+        group:
+            dtype: str
+    returns:
+        output:
+            dtype: tensor
+    function:
+        disable: True
+    dispatch:
+        enable: True
+        is_comm_op: True
+        Ascend: DistCommBroadcastAscend
+        CPU: DistCommBroadcastCPU
+    non-differentiable: True

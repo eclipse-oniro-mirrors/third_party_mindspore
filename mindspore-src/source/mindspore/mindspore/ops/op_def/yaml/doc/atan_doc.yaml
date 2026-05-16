@@ -1,0 +1,22 @@
+atan:
+    description: |
+        Computes the trigonometric inverse tangent of the input element-wise.
+
+        .. math::
+
+            out_i = \tan^{-1}(input_i)
+
+        Args:
+            input (Tensor): The input tensor.
+
+        Returns:
+            Tensor
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> output = mindspore.ops.atan(mindspore.tensor([1.0, 0.0]))
+            >>> print(output)
+            [0.7853982 0.       ]

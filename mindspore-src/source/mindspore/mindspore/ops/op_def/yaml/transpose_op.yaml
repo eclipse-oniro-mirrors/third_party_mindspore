@@ -1,0 +1,14 @@
+#operator transpose
+transpose:
+  args:
+    input:
+      dtype: tensor
+    dims:
+      dtype: tuple[int]
+      type_cast: list[int]
+  returns:
+    output:
+      dtype: tensor
+  view: True
+  dispatch:
+    enable: True

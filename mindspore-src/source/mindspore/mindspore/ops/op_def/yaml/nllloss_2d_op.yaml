@@ -1,0 +1,28 @@
+#operator nllloss_2d
+nllloss_2d:
+    args:
+        input:
+            dtype: tensor
+        target:
+            dtype: tensor
+        weight:
+            dtype: tensor
+        reduction:
+            dtype: int
+            default: "'mean'"
+            arg_handler: str_to_enum
+        ignore_index:
+            dtype: int
+            default: -100
+    returns:
+        loss:
+            dtype: tensor
+        total_weight:
+            dtype: tensor
+    function:
+        disable: True
+    class:
+        name: NLLLoss2d
+    dispatch:
+        enable: True
+        Ascend: NLLLoss2dAscend

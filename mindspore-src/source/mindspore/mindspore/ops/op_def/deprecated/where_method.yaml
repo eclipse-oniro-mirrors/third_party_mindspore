@@ -1,0 +1,14 @@
+#deprecated where
+where:
+  args:
+    condition:
+      dtype: tensor
+    input:
+      dtype: tensor
+      type_cast: number
+    y:
+      dtype: tensor
+      type_cast: number
+  returns:
+    output:
+      dtype: tensor

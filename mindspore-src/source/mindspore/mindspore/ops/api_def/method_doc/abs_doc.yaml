@@ -1,0 +1,5 @@
+abs:
+  description: |
+    abs() -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.abs`.

@@ -1,0 +1,8 @@
+masked_fill_:
+    description: |
+        masked_fill_(mask, value) -> Tensor
+        
+        In-place version of :func:`mindspore.Tensor.masked_fill`.
+
+        .. warning::
+            This is an experimental API that is subject to change or deletion.

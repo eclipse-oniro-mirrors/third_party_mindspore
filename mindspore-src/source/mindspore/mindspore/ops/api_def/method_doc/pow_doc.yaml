@@ -1,0 +1,6 @@
+pow:
+  description: |
+    pow(exponent) -> Tensor
+
+    For details, please refer to :func:`mindspore.ops.pow`.
+

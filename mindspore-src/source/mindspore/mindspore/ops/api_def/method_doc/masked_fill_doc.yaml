@@ -1,0 +1,5 @@
+masked_fill:
+  description: |
+    masked_fill(mask, value) -> Tensor
+    
+    For details, please refer to :func:`mindspore.ops.masked_fill`.

@@ -1,0 +1,5 @@
+acos:
+  description: |
+    acos() -> Tensor
+
+    For details, please refer to :func:`mindspore.ops.acos`.

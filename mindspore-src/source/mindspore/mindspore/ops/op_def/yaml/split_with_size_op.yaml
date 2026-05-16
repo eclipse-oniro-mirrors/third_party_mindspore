@@ -1,0 +1,20 @@
+#operator split_with_size
+split_with_size:
+  args:
+    input:
+      dtype: tensor
+    split_size:
+      dtype: tuple[int]
+      type_cast: list[int]
+    dim:
+      dtype: int
+      default: 0
+  returns:
+    output:
+      dtype: tuple[tensor]
+  view: True
+  dispatch:
+    enable: True
+    GPU: None
+  function:
+    disable: True

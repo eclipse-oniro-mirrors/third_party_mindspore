@@ -1,0 +1,37 @@
+round:
+    description: |
+        Returns half to even of a tensor element-wise.
+
+        .. math::
+            out_i \approx input_i
+        
+        .. note::
+            The input data types supported by the Ascend platform include 
+            bfloat16 (Atlas training series products are not supported), float16, float32, float64, int32, and int64.
+
+        Inputs:
+            - **input** (Tensor) - The input tensor.
+            - **decimals** (int, optional) - Number of decimal places to round to (default: 0). If decimals is 
+              negative, it specifies the number of positions to the left of the decimal point. It supports 
+              converting the single-element tensor to an int. When `input` type is int32 or int64, the `decimals`
+              should be 0.
+
+        Outputs:
+            Tensor, has the same shape and type as the `input`.
+
+        Raises:
+            TypeError: If `input` is not a Tensor.
+            RuntimeError: If `input` type is int32 or int64, the `decimals` is not 0.
+
+        Supported Platforms:
+            ``Ascend`` ``GPU`` ``CPU``
+
+        Examples:
+            >>> import mindspore
+            >>> import numpy as np
+            >>> from mindspore import Tensor, ops
+            >>> input = Tensor(np.array([0.8, 1.5, 2.3, 2.5, -4.5]), mindspore.float32)
+            >>> round = ops.Round()
+            >>> output = round(input)
+            >>> print(output)
+            [ 1.  2.  2.  2. -4.]
